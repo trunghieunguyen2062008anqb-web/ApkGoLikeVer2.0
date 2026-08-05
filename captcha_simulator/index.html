@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golike Captcha Simulator & Recorder</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts for Premium Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Main Header -->
+        <header class="app-header">
+            <h1>Golike Captcha <span class="glow-text">Simulator</span></h1>
+            <p>Giải tay để ghi lại quỹ đạo di chuyển hoặc chạy mô phỏng Auto-Solve bằng thuật toán Bezier</p>
+        </header>
+
+        <div class="main-layout">
+            <!-- Left Side: Interactive Canvas Card -->
+            <div class="card canvas-card">
+                <div class="card-header">
+                    <h2>Màn Hình Xác Minh</h2>
+                    <span class="status-badge" id="status-badge">SẴN SÀNG</span>
+                </div>
+                
+                <!-- Captcha Container mimicking phone aspect ratio -->
+                <div class="captcha-wrapper">
+                    <canvas id="captchaCanvas" width="400" height="400"></canvas>
+                </div>
+                
+                <div class="instructions">
+                    <p><strong>Hướng dẫn:</strong> Giữ chuột hoặc ngón tay trên khối vuông xanh lam, kéo xuyên qua vòng tròn nét đứt và thả vào vòng tròn màu xanh lá cây.</p>
+                </div>
+            </div>
+
+            <!-- Right Side: Control & Log Panels -->
+            <div class="control-panel">
+                <!-- Status Dashboard -->
+                <div class="card dashboard-card">
+                    <h2>Bảng Điều Khiển</h2>
+                    
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <span class="label">Điểm Bắt Đầu</span>
+                            <span class="value" id="val-start">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Checkpoint</span>
+                            <span class="value" id="val-check">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Điểm Đích</span>
+                            <span class="value" id="val-end">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Trạng Thái Checkpoint</span>
+                            <span class="value status-fail" id="val-checkpoint-status">CHƯA QUA</span>
+                        </div>
+                    </div>
+
+                    <div class="actions">
+                        <button id="btn-auto" class="btn btn-primary">
+                            <span class="icon">🤖</span> Auto Solve
+                        </button>
+                        <button id="btn-reset" class="btn btn-secondary">
+                            <span class="icon">🔄</span> Reset Màn Hình
+                        </button>
+                        <button id="btn-export" class="btn btn-success" disabled>
+                            <span class="icon">📥</span> Xuất File Quỹ Đạo
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Log Panel -->
+                <div class="card log-card">
+                    <div class="log-header">
+                        <h2>Quỹ Đạo Tọa Độ (Live Log)</h2>
+                        <span class="log-count" id="log-count">0 points</span>
+                    </div>
+                    <div class="log-container" id="log-container">
+                        <div class="log-placeholder">Chưa có dữ liệu kéo chuột...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
