@@ -141,12 +141,12 @@ TEMPLATES_CONFIG = {
     },
     "nut_nhan_job_ngay": {
         "filename": "nut_nhan_job_ngay.png",
-        "threshold": 0.8,
+        "threshold": 0.7,
         "description": "Nút nhận Job ngay"
     },
     "tab_danh_sach_cong_viec": {
         "filename": "tab_danh_sach_cong_viec.png",
-        "threshold": 0.8,
+        "threshold": 0.7,
         "description": "Tab Danh sách công việc"
     },
     "nut_dong_y": {
@@ -739,7 +739,7 @@ def handle_captcha_if_present(screen, adb, scenario=1):
             # Quét trên toàn màn hình để tìm vị trí thực tế của tiêu đề
             res_title = cv2.matchTemplate(screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
             _, score_title, _, loc_title = cv2.minMaxLoc(res_title)
-            if score_title < 0.60:
+            if score_title < 0.75:
                 # Không tìm thấy tiêu đề "Xác minh nhanh" => Chắc chắn không có captcha!
                 return False
             tx, ty = loc_title
@@ -823,7 +823,7 @@ def handle_captcha_if_present(screen, adb, scenario=1):
                         continue
                     res_title_check = cv2.matchTemplate(fresh_screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
                     _, score_title_check, _, _ = cv2.minMaxLoc(res_title_check)
-                    if score_title_check < 0.60:
+                    if score_title_check < 0.75:
                         print("[CAPTCHA] ✅ Đã giải xong Captcha! Tiếp tục cày...")
                         break
             return True
@@ -996,7 +996,7 @@ def main():
                     # Quét trên toàn màn hình để tránh phụ thuộc vị trí cửa sổ nổi
                     res_title = cv2.matchTemplate(screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
                     _, score_title, _, _ = cv2.minMaxLoc(res_title)
-                    if score_title >= 0.60:
+                    if score_title >= 0.75:
                         is_captcha = True
                 
                 if has_details or has_popup or has_ok or is_captcha:
@@ -1154,9 +1154,9 @@ def main():
                     time.sleep(1.5)
 
             # --- BƯỚC CAPTCHA: VƯỢT CAPTCHA XÁC MINH NHANH ---
-            # Chỉ chạy khi chưa mở TikTok, không ở màn hình chính nhận Job, và không ở trang Chi tiết (tránh nhận diện nhầm)
+            # Chỉ chạy khi chưa mở TikTok, không ở màn hình chính nhận Job, không ở trang Chi tiết, và không ở tab công việc (tránh nhận diện nhầm)
             if not action_taken and not adb.tiktok_clicked:
-                if not matcher.find_match(screen, "nut_nhan_job_ngay") and not matcher.find_match(screen, "header_chi_tiet"):
+                if not matcher.find_match(screen, "nut_nhan_job_ngay") and not matcher.find_match(screen, "header_chi_tiet") and not matcher.find_match(screen, "tab_danh_sach_cong_viec"):
                     action_taken = handle_captcha_if_present(screen, adb, scenario)
 
             # --- BƯỚC ĐÓNG QUẢNG CÁO ---
