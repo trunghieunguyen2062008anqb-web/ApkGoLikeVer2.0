@@ -736,7 +736,7 @@ def handle_captcha_if_present(screen, adb, scenario=1):
             # Quét trên toàn màn hình để tìm vị trí thực tế của tiêu đề
             res_title = cv2.matchTemplate(screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
             _, score_title, _, loc_title = cv2.minMaxLoc(res_title)
-            if score_title < 0.72:
+            if score_title < 0.60:
                 # Không tìm thấy tiêu đề "Xác minh nhanh" => Chắc chắn không có captcha!
                 return False
             tx, ty = loc_title
@@ -816,7 +816,7 @@ def handle_captcha_if_present(screen, adb, scenario=1):
                         continue
                     res_title_check = cv2.matchTemplate(fresh_screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
                     _, score_title_check, _, _ = cv2.minMaxLoc(res_title_check)
-                    if score_title_check < 0.72:
+                    if score_title_check < 0.60:
                         print("[CAPTCHA] ✅ Đã giải xong Captcha! Tiếp tục cày...")
                         break
             return True
@@ -989,7 +989,7 @@ def main():
                     # Quét trên toàn màn hình để tránh phụ thuộc vị trí cửa sổ nổi
                     res_title = cv2.matchTemplate(screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
                     _, score_title, _, _ = cv2.minMaxLoc(res_title)
-                    if score_title >= 0.72:
+                    if score_title >= 0.60:
                         is_captcha = True
                 
                 if has_details or has_popup or has_ok or is_captcha:
@@ -1043,6 +1043,7 @@ def main():
                         if match_success or (green_pixels > 30):
                             completed_jobs += 1
                             print(f"[SUCCESS] 🎉 BÁO CÁO THÀNH CÔNG! Hôm nay sếp đã hoàn thành {completed_jobs}/300 job! 🚀🔥")
+                            print("--------------------------------------")
                             
                             # Cứ mỗi 10 job hoàn thành thành công thì nghỉ ngơi 1 phút (60 giây) tránh lag máy
                             if completed_jobs > 0 and completed_jobs % 10 == 0:
@@ -1085,6 +1086,7 @@ def main():
                         print(f"[BÁO LỖI] ✅ Click nút Gửi báo cáo tại ({gx}, {gy})")
                         save_debug_image(screen, gx, gy, "Gui Bao Cao")
                         adb.tap(gx, gy)
+                        print("--------------------------------------")
                         adb.need_report_error = False
                         adb.report_swipe_count = 0
                         action_taken = True
