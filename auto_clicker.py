@@ -341,7 +341,10 @@ class ADBController:
         Tạo file Monkey Script từ danh sách tọa độ vuốt qua nhiều điểm,
         đẩy vào điện thoại và thực thi để giả lập kéo thả mượt mà/rung tay chậm rãi.
         """
-        # Mỗi bước di chuyển (MOVE) dừng 100ms để kéo thả chậm rãi như tay người (tổng ~4.0 giây)
+        # Tính toán thời gian đợi giữa mỗi điểm để tổng thời gian kéo luôn xấp xỉ 3.5 giây (3500ms)
+        n_points = len(path)
+        wait_ms = max(10, min(100, int(3500 / n_points))) if n_points > 0 else 100
+        
         script_lines = [
             "type= raw events",
             f"count= {len(path) * 2 + 5}",
@@ -352,12 +355,12 @@ class ADBController:
         # 1. DOWN event
         x0, y0 = path[0]
         script_lines.append(f"DispatchPointer(0, 0, 0, {x0}, {y0}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
-        script_lines.append("UserWait(100)")
+        script_lines.append(f"UserWait({wait_ms})")
         
         # 2. MOVE events
         for x, y in path[1:-1]:
             script_lines.append(f"DispatchPointer(0, 0, 2, {x}, {y}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
-            script_lines.append("UserWait(100)")
+            script_lines.append(f"UserWait({wait_ms})")
             
         # 3. UP event
         xn, yn = path[-1]
@@ -752,8 +755,8 @@ def handle_captcha_if_present(screen, adb, scenario=1):
             area_thresh = 250
         elif scenario == 3:
             # Cửa sổ nổi: Tính toán tọa độ quét động dựa trên vị trí tìm thấy của tiêu đề Captcha
-            x_min = max(0, tx - 300)
-            x_max = min(width, tx + 250)
+            x_min = max(0, tx - 100)
+            x_max = min(width, tx + 550)
             y_min = max(0, ty + 300)
             y_max = min(height, ty + 950)
             y_min_gray = y_min
@@ -774,6 +777,8 @@ def handle_captcha_if_present(screen, adb, scenario=1):
         mask_blue[:, x_max:] = 0
         
         contours_blue, _ = cv2.findContours(mask_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Sắp xếp các contour từ trái qua phải để luôn ưu tiên tìm khối trượt xanh lam trước (nút này luôn nằm bên trái nhất)
+        contours_blue = sorted(contours_blue, key=lambda c: cv2.boundingRect(c)[0] + cv2.boundingRect(c)[2]//2)
         blue_center = None
         for c in contours_blue:
             area = cv2.contourArea(c)
@@ -792,6 +797,8 @@ def handle_captcha_if_present(screen, adb, scenario=1):
         mask_green[:, x_max:] = 0
         
         contours_green, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Sắp xếp các contour từ phải qua trái để luôn ưu tiên tìm vòng tròn đích xanh lá trước (nút này luôn nằm bên phải nhất)
+        contours_green = sorted(contours_green, key=lambda c: cv2.boundingRect(c)[0] + cv2.boundingRect(c)[2]//2, reverse=True)
         green_center = None
         for c in contours_green:
             area = cv2.contourArea(c)
