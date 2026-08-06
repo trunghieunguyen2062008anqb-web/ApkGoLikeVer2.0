@@ -814,28 +814,10 @@ def handle_captcha_if_present(screen, adb, scenario=1):
         if not is_captcha:
             return False
             
-        # 3. Xử lý trường hợp có Captcha nhưng thiếu màu (Chờ giải tay)
+        # 3. Xử lý trường hợp có Captcha nhưng thiếu màu (Tự động báo lỗi bỏ qua Job)
         if not (blue_center and green_center):
-            print(f"[CAPTCHA] ⚠️ Phát hiện màn hình Captcha nhưng không đủ điều kiện giải tự động (Blue={blue_center}, Green={green_center}).")
-            print("[CAPTCHA] 👆 Vui lòng tự tay giải Captcha này trên màn hình. Tool sẽ tự động chạy tiếp khi sếp giải xong...")
-            
-            temp_title = cv2.imread('templates/captcha_title.png')
-            if temp_title is not None:
-                scale_val = 1.867 if scenario == 3 else 2.667
-                tw = int(temp_title.shape[1] * scale_val)
-                th = int(temp_title.shape[0] * scale_val)
-                temp_scaled = cv2.resize(temp_title, (tw, th), interpolation=cv2.INTER_CUBIC)
-                
-                while True:
-                    time.sleep(2.0)
-                    fresh_screen = adb.get_screenshot()
-                    if fresh_screen is None:
-                        continue
-                    res_title_check = cv2.matchTemplate(fresh_screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
-                    _, score_title_check, _, _ = cv2.minMaxLoc(res_title_check)
-                    if score_title_check < 0.60:
-                        print("[CAPTCHA] ✅ Đã giải xong Captcha! Tiếp tục cày...")
-                        break
+            print(f"[CAPTCHA] ⚠️ Phát hiện màn hình Captcha nhưng không đủ điều kiện màu (Blue={blue_center}, Green={green_center}). Tự động chuyển báo lỗi để bỏ qua Job!")
+            adb.need_report_error = True
             return True
                 
         if blue_center and green_center:
