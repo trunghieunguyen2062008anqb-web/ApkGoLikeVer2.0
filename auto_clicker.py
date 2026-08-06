@@ -722,50 +722,22 @@ def generate_human_morphed_path(P0, P_check, P2):
 # ==========================================
 # THUẬT TOÁN TỰ ĐỘNG GIẢI CAPTCHA XÁC MINH NHANH
 # ==========================================
-def handle_captcha_if_present(screen, adb, scenario=1):
+# ==========================================
+# HÀM PHÁT HIỆN CÁC PHẦN TỬ CAPTCHA TRÊN MÀN HÌNH (NỬA DƯỚI)
+# ==========================================
+def detect_captcha_elements(screen, scenario=3):
     """
-    Kiểm tra và tự động giải quyết Captcha Xác minh nhanh.
+    Quét nửa phía dưới màn hình điện thoại (Y: 750 đến 1650) để dò tìm
+    khối vuông màu xanh lam và vòng tròn đích màu xanh lá.
+    Trả về (blue_center, green_center) nếu cả hai được tìm thấy, ngược lại trả về (None, None).
     """
     try:
-        # Kiểm tra tiêu đề "Xác minh nhanh" để đảm bảo thực sự có captcha popup trước khi quét màu
-        temp_title = cv2.imread('templates/captcha_title.png')
-        tx, ty = 0, 0
-        if temp_title is not None:
-            scale_val = 1.867 if scenario == 3 else 2.667
-            tw = int(temp_title.shape[1] * scale_val)
-            th = int(temp_title.shape[0] * scale_val)
-            temp_scaled = cv2.resize(temp_title, (tw, th), interpolation=cv2.INTER_CUBIC)
-            
-            # Quét trên toàn màn hình để tìm vị trí thực tế của tiêu đề
-            res_title = cv2.matchTemplate(screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
-            _, score_title, _, loc_title = cv2.minMaxLoc(res_title)
-            if score_title < 0.75:
-                # Không tìm thấy tiêu đề "Xác minh nhanh" => Chắc chắn không có captcha!
-                return False
-            tx, ty = loc_title
-                
         hsv = cv2.cvtColor(screen, cv2.COLOR_BGR2HSV)
         height, width, _ = screen.shape
         
-        # Thiết lập dải quét tùy theo kịch bản chạy (Kịch bản 1: Chia đôi màn hình, Kịch bản 2: Toàn màn hình, Kịch bản 3: Cửa sổ nổi)
-        if scenario == 1:
-            x_min, x_max = 36, 684
-            y_min, y_max = 300, 800
-            y_min_gray = 360
-            area_thresh = 250
-        elif scenario == 3:
-            # Cửa sổ nổi: Tính toán tọa độ quét động dựa trên vị trí tìm thấy của tiêu đề Captcha
-            x_min = max(0, tx - 100)
-            x_max = min(width, tx + 550)
-            y_min = max(0, ty + 300)
-            y_max = min(height, ty + 950)
-            y_min_gray = y_min
-            area_thresh = 120
-        else: # scenario == 2
-            x_min, x_max = 36, 684
-            y_min, y_max = 300, 1300
-            y_min_gray = 360
-            area_thresh = 250
+        # Thiết lập dải quét cố định ở nửa dưới màn hình (Y: 750 đến 1650)
+        x_min, x_max = 0, width
+        y_min, y_max = 750, 1650
         
         # 1. Dò tìm khối vuông màu xanh lam (Blue Square)
         lower_blue = np.array([100, 150, 150])
@@ -773,8 +745,6 @@ def handle_captcha_if_present(screen, adb, scenario=1):
         mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
         mask_blue[:y_min, :] = 0
         mask_blue[y_max:, :] = 0
-        mask_blue[:, :x_min] = 0
-        mask_blue[:, x_max:] = 0
         
         contours_blue, _ = cv2.findContours(mask_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # Sắp xếp các contour từ trái qua phải để luôn ưu tiên tìm khối trượt xanh lam trước (nút này luôn nằm bên trái nhất)
@@ -793,8 +763,6 @@ def handle_captcha_if_present(screen, adb, scenario=1):
         mask_green = cv2.inRange(hsv, lower_green, upper_green)
         mask_green[:y_min, :] = 0
         mask_green[y_max:, :] = 0
-        mask_green[:, :x_min] = 0
-        mask_green[:, x_max:] = 0
         
         contours_green, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # Sắp xếp các contour từ phải qua trái để luôn ưu tiên tìm vòng tròn đích xanh lá trước (nút này luôn nằm bên phải nhất)
@@ -809,13 +777,55 @@ def handle_captcha_if_present(screen, adb, scenario=1):
                     green_center = (x + gw//2, y + gh//2)
                     break
                     
-        # Nếu tìm thấy cả khối vuông xanh lam và đích xanh lá => Có Captcha!
-        if not (blue_center and green_center):
+        return blue_center, green_center
+    except Exception as e:
+        return None, None
+
+
+# ==========================================
+# THUẬT TOÁN TỰ ĐỘNG GIẢI CAPTCHA XÁC MINH NHANH
+# ==========================================
+def handle_captcha_if_present(screen, adb, scenario=1):
+    """
+    Kiểm tra và tự động giải quyết Captcha Xác minh nhanh.
+    """
+    try:
+        # 1. Gọi hàm dò tìm phần tử màu ở nửa dưới màn hình
+        blue_center, green_center = detect_captcha_elements(screen, scenario)
+        
+        # 2. Kiểm tra tính xác thực của Captcha
+        is_captcha = False
+        if blue_center and green_center:
+            is_captcha = True
+        else:
+            # Fallback: Nếu không tìm thấy đủ màu, quét thử tiêu đề "Xác minh nhanh" để xem thực sự có captcha không
+            temp_title = cv2.imread('templates/captcha_title.png')
             if temp_title is not None:
-                print(f"[CAPTCHA] ⚠️ Không đủ điều kiện giải tự động (Blue={blue_center}, Green={green_center}).")
-                print("[CAPTCHA] 👆 Vui lòng tự tay giải Captcha này trên màn hình. Tool sẽ tự động chạy tiếp khi sếp giải xong...")
+                scale_val = 1.867 if scenario == 3 else 2.667
+                tw = int(temp_title.shape[1] * scale_val)
+                th = int(temp_title.shape[0] * scale_val)
+                temp_scaled = cv2.resize(temp_title, (tw, th), interpolation=cv2.INTER_CUBIC)
                 
-                # Vòng lặp chờ sếp giải tay
+                res_title = cv2.matchTemplate(screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
+                _, score_title, _, _ = cv2.minMaxLoc(res_title)
+                if score_title >= 0.60: # Dùng ngưỡng thấp 0.60 để phát hiện thủ công
+                    is_captcha = True
+                    
+        if not is_captcha:
+            return False
+            
+        # 3. Xử lý trường hợp có Captcha nhưng thiếu màu (Chờ giải tay)
+        if not (blue_center and green_center):
+            print(f"[CAPTCHA] ⚠️ Phát hiện màn hình Captcha nhưng không đủ điều kiện giải tự động (Blue={blue_center}, Green={green_center}).")
+            print("[CAPTCHA] 👆 Vui lòng tự tay giải Captcha này trên màn hình. Tool sẽ tự động chạy tiếp khi sếp giải xong...")
+            
+            temp_title = cv2.imread('templates/captcha_title.png')
+            if temp_title is not None:
+                scale_val = 1.867 if scenario == 3 else 2.667
+                tw = int(temp_title.shape[1] * scale_val)
+                th = int(temp_title.shape[0] * scale_val)
+                temp_scaled = cv2.resize(temp_title, (tw, th), interpolation=cv2.INTER_CUBIC)
+                
                 while True:
                     time.sleep(2.0)
                     fresh_screen = adb.get_screenshot()
@@ -823,7 +833,7 @@ def handle_captcha_if_present(screen, adb, scenario=1):
                         continue
                     res_title_check = cv2.matchTemplate(fresh_screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
                     _, score_title_check, _, _ = cv2.minMaxLoc(res_title_check)
-                    if score_title_check < 0.75:
+                    if score_title_check < 0.60:
                         print("[CAPTCHA] ✅ Đã giải xong Captcha! Tiếp tục cày...")
                         break
             return True
@@ -832,12 +842,21 @@ def handle_captcha_if_present(screen, adb, scenario=1):
             print("[BƯỚC CAPTCHA] 🧩 Phát hiện màn hình giải Captcha...")
             
             # 3. Dò tìm vòng tròn nét đứt (Dashed Checkpoint)
+            # Xác định vùng xám để tìm nét đứt ở giữa (giới hạn chặt chẽ theo bounding box của Blue và Green)
+            x_min = min(blue_center[0], green_center[0])
+            x_max = max(blue_center[0], green_center[0])
+            y_min = min(blue_center[1], green_center[1]) - 150
+            y_max = max(blue_center[1], green_center[1]) + 50
+            y_min_gray = y_min
+            
             gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
             mask_gray = (gray < 225) & (gray > 120)
-            mask_gray[:y_min_gray, :] = 0  
-            mask_gray[y_max:, :] = 0  
-            mask_gray[:, :x_min] = 0   
-            mask_gray[:, x_max:] = 0  
+            
+            height, width, _ = screen.shape
+            mask_gray[:max(0, y_min), :] = 0  
+            mask_gray[min(height, y_max):, :] = 0  
+            mask_gray[:, :max(0, x_min)] = 0   
+            mask_gray[:, min(width, x_max):] = 0  
             
             # Điều chỉnh kích thước bộ lọc theo kịch bản
             cw_min, cw_max = (4, 25) if scenario == 3 else (6, 35)
@@ -986,18 +1005,21 @@ def main():
                 
                 # Kiểm tra xem Captcha có xuất hiện trong lúc chờ không
                 is_captcha = False
-                temp_title = cv2.imread('templates/captcha_title.png')
-                if temp_title is not None:
-                    scale_val = 1.867 if scenario == 3 else 2.667
-                    tw = int(temp_title.shape[1] * scale_val)
-                    th = int(temp_title.shape[0] * scale_val)
-                    temp_scaled = cv2.resize(temp_title, (tw, th), interpolation=cv2.INTER_CUBIC)
-                    
-                    # Quét trên toàn màn hình để tránh phụ thuộc vị trí cửa sổ nổi
-                    res_title = cv2.matchTemplate(screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
-                    _, score_title, _, _ = cv2.minMaxLoc(res_title)
-                    if score_title >= 0.75:
-                        is_captcha = True
+                bc, gc = detect_captcha_elements(screen, scenario)
+                if bc and gc:
+                    is_captcha = True
+                else:
+                    # Fallback quét tiêu đề
+                    temp_title = cv2.imread('templates/captcha_title.png')
+                    if temp_title is not None:
+                        scale_val = 1.867 if scenario == 3 else 2.667
+                        tw = int(temp_title.shape[1] * scale_val)
+                        th = int(temp_title.shape[0] * scale_val)
+                        temp_scaled = cv2.resize(temp_title, (tw, th), interpolation=cv2.INTER_CUBIC)
+                        res_title = cv2.matchTemplate(screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
+                        _, score_title, _, _ = cv2.minMaxLoc(res_title)
+                        if score_title >= 0.60:
+                            is_captcha = True
                 
                 if has_details or has_popup or has_ok or is_captcha:
                     adb.waiting_for_job = False
