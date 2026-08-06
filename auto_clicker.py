@@ -141,12 +141,12 @@ TEMPLATES_CONFIG = {
     },
     "nut_nhan_job_ngay": {
         "filename": "nut_nhan_job_ngay.png",
-        "threshold": 0.7,
+        "threshold": 0.75,
         "description": "Nút nhận Job ngay"
     },
     "tab_danh_sach_cong_viec": {
         "filename": "tab_danh_sach_cong_viec.png",
-        "threshold": 0.7,
+        "threshold": 0.75,
         "description": "Tab Danh sách công việc"
     },
     "nut_dong_y": {
@@ -1304,23 +1304,24 @@ def main():
             
             # --- BƯỚC 1: NHẬN JOB ---
             if not action_taken:
-                match_nhan_job = matcher.find_match(screen, "nut_nhan_job_ngay")
-                if match_nhan_job:
-                    cx, cy, score = match_nhan_job
-                    print(f"[BƯỚC 1] ⚡ Click Nhận Job ngay tại ({cx}, {cy})")
-                    save_debug_image(screen, cx, cy, "Nhan Job Ngay")
-                    adb.tap(cx, cy)
-                    action_taken = True
-                    adb.tiktok_clicked = False
-                    adb.tiktok_action_done = False # Reset trạng thái tương tác cho job mới
-                    # Kích hoạt cờ chờ mạng tải job
-                    adb.waiting_for_job = True
-                    adb.job_request_time = time.time()
-                    print("[BƯỚC 1] ⏳ Đã bấm Nhận Job. Đợi trang Chi tiết hoặc Popup load...")
-                    time.sleep(1.0)
-                else:
-                    match_tab = matcher.find_match(screen, "tab_danh_sach_cong_viec")
-                    if match_tab:
+                # Chỉ xử lý tìm Job mới khi thanh tab dưới cùng hiển thị (tránh click nhầm ở các màn hình chọn tài khoản)
+                match_tab = matcher.find_match(screen, "tab_danh_sach_cong_viec")
+                if match_tab:
+                    match_nhan_job = matcher.find_match(screen, "nut_nhan_job_ngay")
+                    if match_nhan_job:
+                        cx, cy, score = match_nhan_job
+                        print(f"[BƯỚC 1] ⚡ Click Nhận Job ngay tại ({cx}, {cy})")
+                        save_debug_image(screen, cx, cy, "Nhan Job Ngay")
+                        adb.tap(cx, cy)
+                        action_taken = True
+                        adb.tiktok_clicked = False
+                        adb.tiktok_action_done = False # Reset trạng thái tương tác cho job mới
+                        # Kích hoạt cờ chờ mạng tải job
+                        adb.waiting_for_job = True
+                        adb.job_request_time = time.time()
+                        print("[BƯỚC 1] ⏳ Đã bấm Nhận Job. Đợi trang Chi tiết hoặc Popup load...")
+                        time.sleep(1.0)
+                    else:
                         print("⏳ Vuốt tìm Job mới...")
                         if scenario == 3:
                             # Vuốt cuộn bên trong Cửa sổ nổi
