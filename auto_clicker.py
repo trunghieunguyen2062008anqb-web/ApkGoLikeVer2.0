@@ -120,15 +120,21 @@ class ModernADBController:
             cmd.extend(['-s', self.device_id])
         cmd.extend(['exec-out', 'screencap', '-p'])
         
+        process = None
         try:
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
+            stdout, stderr = process.communicate(timeout=6.0)
             if process.returncode != 0 or not stdout:
                 return None
             image_array = np.frombuffer(stdout, dtype=np.uint8)
             image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
             return image
-        except:
+        except Exception:
+            if process:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
             return None
 
     def tap(self, x, y):
@@ -137,9 +143,9 @@ class ModernADBController:
             cmd.extend(['-s', self.device_id])
         cmd.extend(['shell', 'input', 'tap', str(int(x)), str(int(y))])
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4.0)
             return True
-        except:
+        except Exception:
             return False
 
     def swipe(self, x1, y1, x2, y2, duration_ms=400):
@@ -148,9 +154,9 @@ class ModernADBController:
             cmd.extend(['-s', self.device_id])
         cmd.extend(['shell', 'input', 'swipe', str(int(x1)), str(int(y1)), str(int(x2)), str(int(y2)), str(int(duration_ms))])
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5.0)
             return True
-        except:
+        except Exception:
             return False
 
     def press_back(self):
@@ -159,9 +165,9 @@ class ModernADBController:
             cmd.extend(['-s', self.device_id])
         cmd.extend(['shell', 'input', 'keyevent', '4'])
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4.0)
             return True
-        except:
+        except Exception:
             return False
 
     def force_stop_app(self, package_name):
@@ -170,9 +176,9 @@ class ModernADBController:
             cmd.extend(['-s', self.device_id])
         cmd.extend(['shell', 'am', 'force-stop', package_name])
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4.0)
             return True
-        except:
+        except Exception:
             return False
 
     def launch_app(self, package_name):
@@ -391,7 +397,7 @@ def perform_tiktok_action(screen, adb, matcher, is_like_job, scenario):
         log(f"Bấm Follow TikTok tại ({fx}, {fy})", "TIKTOK")
         save_debug_image(screen, fx, fy, "Click Follow")
         adb.tap(fx, fy)
-        time.sleep(0.8)
+        time.sleep(0.5)
         return True
         
     # 2. Nếu không tìm thấy nút Follow -> Thực hiện Job Tim
@@ -416,7 +422,7 @@ def perform_tiktok_action(screen, adb, matcher, is_like_job, scenario):
         log(f"Bấm tim TikTok tại ({screen_tx}, {screen_ty})", "TIKTOK")
         save_debug_image(screen, screen_tx, screen_ty, "Click Heart")
         adb.tap(screen_tx, screen_ty)
-        time.sleep(0.8)
+        time.sleep(0.5)
         return True
     else:
         # Dự phòng bằng Double-click vào giữa màn hình video
@@ -426,12 +432,12 @@ def perform_tiktok_action(screen, adb, matcher, is_like_job, scenario):
         adb.tap(cx, cy)
         time.sleep(0.15)
         adb.tap(cx, cy)
-        time.sleep(0.8)
+        time.sleep(0.5)
         return True
 
 
 def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
-    log("Phát hiện màn hình Captcha Xác minh nhanh!", "CAPTCHA")
+    log("Phát hiện màn hình Captcha Xác minh nhanh! Bắt đầu giải...", "CAPTCHA")
     
     for attempt in range(1, 4):
         log(f"Đang quét tìm khối vuông và đích (Lần thử {attempt}/3)...", "CAPTCHA")
@@ -470,6 +476,13 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
                 thresh = 0.30 if scenario == 3 else 0.50
                 if score_title >= thresh:
                     tx, ty = loc_title
+                    # Click nhẹ vào vùng trống tiêu đề để xóa bỏ vết bôi xanh (highlight) văn bản nếu có
+                    adb.tap(tx + 200, ty + 20)
+                    time.sleep(0.3)
+                    # Chụp lại màn hình sạch sau khi xóa bôi xanh
+                    screen = adb.get_screenshot()
+                    if screen is None:
+                        break
                 
         if tx is None or ty is None:
             log("Không tìm thấy tiêu đề Captcha làm mốc quét. Bỏ qua...", "WARNING")
@@ -479,87 +492,184 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
                 break
             continue
             
-        # Định vị các điểm đặc trưng của 5 slide captcha theo hệ tọa độ rời rạc
-        y_opts = [100, 180, 260]
+        # 1. KHOANH VÙNG TUYỆT ĐỐI (ROI) CỬA SỔ GOLIKE
+        roi_y_min = ty + 50
+        roi_y_max = ty + 550  # Mở rộng đủ sâu để tránh bị cắt mất các khối ở hàng 3 dưới đáy (Y=1209)
+        roi_x_min = tx - 30
+        roi_x_max = tx + 550  # Mở rộng thêm biên phải để tránh bị cắt mất đích
         
-        # 1. Quét tìm Khối vuông xanh dương (ở phía bên trái) tại 3 Y-offsets
-        x1 = tx + 36
-        best_blue_y = ty + 160
-        max_blue_pixels = -1
+        # Chuyển đổi sang HSV để tìm kiếm bằng contour
+        hsv = cv2.cvtColor(screen, cv2.COLOR_BGR2HSV)
         
-        for y_offset in y_opts:
-            cx, cy = tx + 36, ty + y_offset
-            # Cắt một cửa sổ nhỏ 40x40 xung quanh tọa độ
-            if cy-20 >= 0 and cy+20 <= height and cx-20 >= 0 and cx+20 <= width:
-                crop_b = screen[cy-20:cy+20, cx-20:cx+20]
-                b_c, g_c, r_c = cv2.split(crop_b)
-                blue_mask = (b_c > g_c + 25) & (b_c > r_c + 25) & (b_c > 80)
-                cnt = np.sum(blue_mask)
-                if cnt > max_blue_pixels:
-                    max_blue_pixels = cnt
-                    best_blue_y = cy
+        # 2. Phát hiện Khối vuông xanh dương (Start Point)
+        # Chúng ta lọc màu xanh dương bão hòa cao trong vùng nửa trái ROI
+        x1, y1 = None, None
+        lower_blue = np.array([90, 80, 50])
+        upper_blue = np.array([135, 255, 255])
+        
+        # Crop nửa trái màn hình theo mốc ROI
+        crop_y_min = max(0, roi_y_min)
+        crop_y_max = min(height, roi_y_max)
+        crop_x_min_b = max(0, roi_x_min)
+        crop_x_max_b = width // 2  # Nửa trái màn hình
+        
+        blue_mask = cv2.inRange(hsv[crop_y_min:crop_y_max, crop_x_min_b:crop_x_max_b], lower_blue, upper_blue)
+        contours_blue, _ = cv2.findContours(blue_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        best_blue_area = -1
+        for cnt in contours_blue:
+            area = cv2.contourArea(cnt)
+            if 150 < area < 3000:
+                x, y, w, h = cv2.boundingRect(cnt)
+                if w > 70 or h > 70 or w < 12 or h < 12:
+                    continue
+                aspect = float(w) / h if h > 0 else 0
+                if aspect < 0.5 or aspect > 2.0:
+                    continue
+                cx = crop_x_min_b + x + w // 2
+                cy = crop_y_min + y + h // 2
+                if area > best_blue_area:
+                    best_blue_area = area
+                    x1, y1 = cx, cy
                     
-        y1 = best_blue_y
+        # Dự phòng (Fallback) nếu lọc màu HSV thất bại (mặc định ở hàng 2)
+        if x1 is None or y1 is None:
+            x1 = tx + 36
+            y1 = ty + 383
+            log("Không tìm thấy khối xanh qua HSV, dùng tọa độ mặc định.", "WARNING")
+            
+        # 3. Phát hiện Vòng tròn xanh lá (End Point)
+        # Chúng ta lọc màu xanh lá trong vùng nửa phải ROI
+        x3, y3 = None, None
+        lower_green = np.array([35, 30, 20])
+        upper_green = np.array([95, 255, 255])
         
-        # 2. Quét tìm Vòng tròn đích xanh lá (ở phía bên phải) tại 3 Y-offsets bằng so khớp mẫu grayscale
-        x3 = tx + 476
-        best_green_y = ty + 260
-        max_green_score = -1
+        crop_x_min_g = width // 2  # Nửa phải màn hình
+        crop_x_max_g = min(width, roi_x_max)
         
-        path_green_temp = "templates/captcha_green_sc3.png"
-        if os.path.exists(path_green_temp):
-            temp_green = cv2.imread(path_green_temp)
-            if temp_green is not None:
-                temp_green_gray = cv2.cvtColor(temp_green, cv2.COLOR_BGR2GRAY)
-                for y_offset in y_opts:
-                    cx, cy = tx + 476, ty + y_offset
-                    if cy-40 >= 0 and cy+40 <= height and cx-40 >= 0 and cx+40 <= width:
-                        crop_g = screen[cy-40:cy+40, cx-40:cx+40]
-                        crop_g_gray = cv2.cvtColor(crop_g, cv2.COLOR_BGR2GRAY)
-                        res_g = cv2.matchTemplate(crop_g_gray, temp_green_gray, cv2.TM_CCOEFF_NORMED)
-                        _, max_val, _, _ = cv2.minMaxLoc(res_g)
-                        if max_val > max_green_score:
-                            max_green_score = max_val
-                            best_green_y = cy
-                            
-        y3 = best_green_y
+        green_mask = cv2.inRange(hsv[crop_y_min:crop_y_max, crop_x_min_g:crop_x_max_g], lower_green, upper_green)
+        contours_green, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        # 3. Tính điểm Waypoint nét đứt trung gian theo quy luật hình học
+        best_green_area = -1
+        for cnt in contours_green:
+            area = cv2.contourArea(cnt)
+            if 100 < area < 3000:
+                x, y, w, h = cv2.boundingRect(cnt)
+                # Bộ lọc kích thước rộng rãi hơn để bao phủ trọn vẹn vòng tròn đích thực tế (khoảng 40-50px)
+                if w > 70 or h > 70 or w < 12 or h < 12:
+                    continue
+                aspect = float(w) / h if h > 0 else 0
+                if aspect < 0.5 or aspect > 2.0:
+                    continue
+                cx = crop_x_min_g + x + w // 2
+                cy = crop_y_min + y + h // 2
+                if area > best_green_area:
+                    best_green_area = area
+                    x3, y3 = cx, cy
+                    
+        # Dự phòng (Fallback) nếu lọc màu HSV thất bại (mặc định ở hàng 2)
+        if x3 is None or y3 is None:
+            x3 = tx + 478
+            y3 = ty + 383
+            log("Không tìm thấy vòng tròn đích qua HSV, dùng tọa độ mặc định.", "WARNING")
+            
+        # 4. Tính toán Waypoint (x2, y2)
         x2 = (x1 + x3) // 2
-        if abs(y1 - y3) > 50:
-            # Chặng xiên (Slide 1, 3): Nét đứt nằm chính giữa đường chéo nối 2 điểm
-            y2 = (y1 + y3) // 2
-        else:
-            # Chặng ngang (Slide 2, 4, 5): Nét đứt bị đẩy lệch
-            if y1 > ty + 200:
-                # Cả 2 ở đáy -> Nét đứt ở đỉnh
-                y2 = ty + 100
+        # Nếu start và end cùng ở một mốc Y (gần nhau), Waypoint sẽ ở mốc Y khác để tạo hình vòng cung
+        if abs(y1 - y3) < 40:
+            row_spacing = 150
+            if y1 > ty + 350:
+                y2 = y1 - row_spacing
+            elif y1 < ty + 200:
+                y2 = y1 + row_spacing
             else:
-                # Cả 2 ở giữa -> Nét đứt ở đáy
-                y2 = ty + 260
-                
-        log(f"Tâm phát hiện: Blue({x1},{y1}) -> Nét đứt({x2},{y2}) -> Đích({x3},{y3})", "CAPTCHA")
+                y2 = y1 + row_spacing
+        else:
+            y2 = (y1 + y3) // 2
+            
+        log("=== DEBUG CAPTCHA ===", "CAPTCHA")
+        log(f"ROI quét: Y=[{roi_y_min}, {roi_y_max}], X=[{roi_x_min}, {roi_x_max}]", "CAPTCHA")
+        log(f"Mốc tiêu đề (tx, ty): ({tx}, {ty})", "CAPTCHA")
+        log(f"Khối xanh phát hiện: Blue({x1},{y1})", "CAPTCHA")
+        log(f"Vòng tròn đích: Đích({x3},{y3})", "CAPTCHA")
+        log(f"Nét đứt Waypoint: Nét đứt({x2},{y2})", "CAPTCHA")
         
-        # 4. Thực thi kéo thả bằng một lệnh adb shell input swipe duy nhất kéo từ Blue tới Đích
-        x1_j = x1 + random.randint(-1, 1)
-        y1_j = y1 + random.randint(-1, 1)
-        x3_j = x3 + random.randint(-1, 1)
-        y3_j = y3 + random.randint(-1, 1)
+        # 5. Tạo đường kéo Bézier mượt mà (35 bước)
+        steps = 35
+        path = []
+        for i in range(steps + 1):
+            t = i / steps
+            bx = (1 - t)**2 * x1 + 2 * (1 - t) * t * x2 + t**2 * x3
+            by = (1 - t)**2 * y1 + 2 * (1 - t) * t * y2 + t**2 * y3
+            xj = int(bx) + random.randint(-1, 1)
+            yj = int(by) + random.randint(-1, 1)
+            path.append((xj, yj))
+            
+        # 6. Viết kịch bản Monkey Script để duy trì Touch Down session thực tế
+        monkey_lines = []
+        monkey_lines.append("type= raw events")
+        monkey_lines.append("count= 10")
+        monkey_lines.append("speed= 1.0")
+        monkey_lines.append("start data >>")
         
-        duration = random.randint(3400, 3600)
-        swipe_cmd = f"input swipe {x1_j} {y1_j} {x3_j} {y3_j} {duration}"
+        # DOWN event
+        monkey_lines.append(f"DispatchPointer(0, 0, 0, {path[0][0]}, {path[0][1]}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
+        monkey_lines.append("UserWait(50)")
         
-        cmd = ['adb']
+        # MOVE events (Khoảng 30-40ms mỗi bước là cực kì mượt mà và thực tế)
+        for px, py in path[1:-1]:
+            monkey_lines.append(f"DispatchPointer(0, 0, 2, {px}, {py}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
+            monkey_lines.append("UserWait(40)")
+            
+        # UP event
+        monkey_lines.append(f"DispatchPointer(0, 0, 1, {path[-1][0]}, {path[-1][1]}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
+        monkey_content = "\n".join(monkey_lines) + "\n"
+        
+        # Ghi file log chi tiết
+        log_file_path = "drag_log.txt"
+        try:
+            with open(log_file_path, "w", encoding="utf-8") as lf:
+                lf.write(f"=== ĐƯỜNG KÉO CAPTCHA BÉZIER (MONKEY) ===\n")
+                lf.write(f"Tọa độ bắt đầu (Blue): ({x1}, {y1})\n")
+                lf.write(f"Tọa độ trung gian (Nét đứt): ({x2}, {y2})\n")
+                lf.write(f"Tọa độ kết thúc (Đích): ({x3}, {y3})\n\n")
+                lf.write(f"=== KỊCH BẢN MONKEY SCRIPT ===\n")
+                lf.write(monkey_content)
+        except Exception as e:
+            log(f"Không thể tạo file debug drag_log.txt: {e}", "WARNING")
+            
+        # Ghi file monkey script tạm ở máy tính
+        local_path = "monkey_drag.txt"
+        try:
+            with open(local_path, "w", newline="\n") as f:
+                f.write(monkey_content)
+        except Exception as e:
+            log(f"Lỗi tạo file monkey script tạm: {e}", "ERROR")
+            
+        # Push lên điện thoại và chạy monkey script
+        device_path = "/data/local/tmp/monkey_drag.txt"
+        push_cmd = ['adb']
         if adb.device_id:
-            cmd.extend(['-s', adb.device_id])
-        cmd.extend(['shell', swipe_cmd])
+            push_cmd.extend(['-s', adb.device_id])
+        push_cmd.extend(['push', local_path, device_path])
+        
+        run_cmd = ['adb']
+        if adb.device_id:
+            run_cmd.extend(['-s', adb.device_id])
+        run_cmd.extend(['shell', 'monkey', '-f', device_path, '1'])
         
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception as e:
-            log(f"Lỗi thực thi lệnh kéo thả swipe: {e}", "ERROR")
+            log(f"Đang chạm giữ tại Blue ({x1}, {y1})...", "CAPTCHA")
+            log(f"Đang kéo Bézier mượt mà qua Waypoint Nét đứt ({x2}, {y2})...", "CAPTCHA")
+            log(f"Đang thả tay tại Đích ({x3}, {y3})...", "CAPTCHA")
             
-        sleep_countdown(3.0, "Chờ kiểm tra kết quả Captcha")
+            subprocess.run(push_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(run_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            log("Đã chạy thành công lệnh monkey kéo thả Bézier mượt mà trên thiết bị.", "CAPTCHA")
+        except Exception as e:
+            log(f"Lỗi chạy script kéo Bézier: {e}", "ERROR")
+            
+        sleep_countdown(3.5, "Chờ kiểm tra kết quả Captcha")
         
         screen = adb.get_screenshot()
         if screen is None:
@@ -759,7 +869,19 @@ def main():
                     if match_gui_bc:
                         log("Gửi báo cáo lỗi...", "JOB")
                         adb.tap(match_gui_bc[0], match_gui_bc[1])
-                        time.sleep(1.8)
+                        time.sleep(2.0)
+                        
+                        # Chờ và click OK để đóng popup thông báo gửi thành công
+                        ok_screen = adb.get_screenshot()
+                        if ok_screen is not None:
+                            match_ok = matcher.find_match(ok_screen, "nut_ok")
+                            if match_ok:
+                                log("Bấm OK xác nhận báo cáo lỗi...", "INFO")
+                                adb.tap(match_ok[0], match_ok[1])
+                                time.sleep(1.5)
+                        
+                        need_report_error = False
+                        report_swipe_count = 0
                         break
                     
                     match_bao_loi = matcher.find_match(screen, "nut_bao_loi")
@@ -799,9 +921,9 @@ def main():
                         fresh_screen = adb.get_screenshot()
                         if fresh_screen is not None:
                             tiktok_action_done = perform_tiktok_action(fresh_screen, adb, matcher, is_like_job, scenario)
-                        time.sleep(0.8)
+                        time.sleep(0.1)
                         log("[TIKTOK] Đã hoàn thành tương tác trên TikTok. Chuẩn bị click Hoàn thành...", "JOB")
-                        time.sleep(0.5)
+                        time.sleep(0.1)
                         continue
                     
                     if not match_tiktok and not tiktok_clicked:
