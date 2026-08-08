@@ -41,3 +41,7 @@ monkey_drag.txt
 *debug_crop_text.png
 *debug_largest_card.png
 *debug_white_card.png
+debug_captcha_screen.png
+debug_run_modern.log
+drag_log.txt
+scratch/
