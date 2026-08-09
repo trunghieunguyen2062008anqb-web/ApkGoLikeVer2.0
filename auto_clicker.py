@@ -34,7 +34,7 @@ TEMPLATES_CONFIG = {
     "icon_tim": {"filename": "icon_tim.png", "threshold": 0.75},
     "job_like_indicator": {"filename": "job_like_indicator.png", "threshold": 0.65},
     "nut_bao_loi": {"filename": "nut_bao_loi.png", "threshold": 0.70},
-    "nut_gui_bao_cao": {"filename": "nut_gui_bao_cao.png", "threshold": 0.75},
+    "nut_gui_bao_cao": {"filename": "nut_gui_bao_cao.png", "threshold": 0.70},
     "txt_job_da_bi_xoa": {"filename": "txt_job_da_bi_xoa.png", "threshold": 0.75},
     "icon_thanh_cong": {"filename": "icon_thanh_cong.png", "threshold": 0.6}
 }
@@ -147,7 +147,7 @@ class ModernADBController:
             return True
         except Exception:
             return False
-
+#         python auto_clicker.py 
     def swipe(self, x1, y1, x2, y2, duration_ms=400):
         cmd = ['adb']
         if self.device_id:
@@ -326,17 +326,20 @@ def find_tiktok_follow_button(screen_img, scenario=3):
         height, width, _ = screen_img.shape
         if scenario == 1:
             y_min, y_max = 850, 1500
+            x_min_f, x_max_f = 30, int(width * 0.60)
         elif scenario == 3:
-            y_min, y_max = 180, 640  # Mở rộng tới 640 để bao trọn nút Follow kể cả khi bio người dùng dài
+            y_min, y_max = 240, 650
+            x_min_f, x_max_f = 20, int(width * 0.55)  # Khóa chặt cột bên trái nơi nút Follow luôn hiển thị
         else:
-            y_min, y_max = 180, 750
+            y_min, y_max = 200, 750
+            x_min_f, x_max_f = 20, int(width * 0.60)
         
-        zone = screen_img[y_min:y_max, :]
+        zone = screen_img[y_min:y_max, x_min_f:x_max_f]
         hsv = cv2.cvtColor(zone, cv2.COLOR_BGR2HSV)
         
-        lower_red1 = np.array([0, 60, 80])
+        lower_red1 = np.array([0, 50, 70])
         upper_red1 = np.array([25, 255, 255])
-        lower_red2 = np.array([160, 60, 80])
+        lower_red2 = np.array([155, 50, 70])
         upper_red2 = np.array([180, 255, 255])
         
         mask = cv2.inRange(hsv, lower_red1, upper_red1) | cv2.inRange(hsv, lower_red2, upper_red2)
@@ -347,16 +350,14 @@ def find_tiktok_follow_button(screen_img, scenario=3):
         
         for contour in contours:
             area = cv2.contourArea(contour)
-            if area > 450:
+            if area > 1200:  # Nút Follow kích thước lớn thực tế (~8000-15000px^2)
                 x, y, w, h = cv2.boundingRect(contour)
-                aspect_ratio = float(w) / h
-                if 1.5 < aspect_ratio < 10.0:
-                    center_x = x + w // 2
-                    if center_x > 500:
-                        continue
+                aspect_ratio = float(w) / h if h > 0 else 0
+                if 1.5 < aspect_ratio < 6.0 and w > 90 and h > 25:
+                    center_x = x_min_f + x + w // 2
+                    center_y = y_min + y + h // 2
                     if area > max_area:
                         max_area = area
-                        center_y = y_min + y + h // 2
                         best_match = (center_x, center_y, area)
                         
         if best_match:
@@ -389,53 +390,52 @@ def find_tiktok_follow_button(screen_img, scenario=3):
 def perform_tiktok_action(screen, adb, matcher, is_like_job, scenario):
     height, width, _ = screen.shape
     
-    if is_like_job:
-        log("[TIKTOK] Đang thực hiện Job Tim/Like...", "TIKTOK")
+    # 1. Kiểm tra sự xuất hiện của nút Follow ở nửa trên màn hình TikTok
+    follow_btn = find_tiktok_follow_button(screen, scenario)
+    if follow_btn:
+        fx, fy, area = follow_btn
+        log("[TIKTOK] Phát hiện Job Follow", "TIKTOK")
+        log(f"Bấm Follow TikTok tại ({fx}, {fy})", "TIKTOK")
+        save_debug_image(screen, fx, fy, "Click Follow")
+        adb.tap(fx, fy)
+        time.sleep(0.5)
+        return True
         
-        # Giới hạn vùng quét ở cột bên phải màn hình
-        x_min = int(width * 0.8)
-        if scenario == 3:
-            y_min_crop = 100
-            y_max_crop = 480
-        else:
-            y_min_crop = 350
-            y_max_crop = 1100
-            
-        right_col = screen[y_min_crop:y_max_crop, x_min:width]
-        match_tim = matcher.find_match(right_col, "icon_tim")
+    # 2. Nếu không tìm thấy nút Follow -> Thực hiện Job Tim
+    log("[TIKTOK] Phát hiện Job Tim / Video feed", "TIKTOK")
+    
+    # Giới hạn vùng quét ở cột biểu tượng tương tác bên phải màn hình (X: ~580-720, Y: ~420-750)
+    x_min = int(width * 0.75)
+    y_min_crop = 420
+    y_max_crop = 750
         
-        if match_tim:
-            tx, ty, score = match_tim
-            screen_tx = x_min + tx
-            screen_ty = y_min_crop + ty
-            log(f"Bấm tim TikTok tại ({screen_tx}, {screen_ty})", "TIKTOK")
-            save_debug_image(screen, screen_tx, screen_ty, "Click Heart")
-            adb.tap(screen_tx, screen_ty)
-            time.sleep(0.5)
-            return True
-        else:
-            # Dự phòng bằng Double-click vào giữa màn hình video
-            cx = int(width * 0.5)
-            cy = int((y_min_crop + y_max_crop) * 0.5)
-            log(f"Không thấy nút Tim. Thử Double-click video tại ({cx}, {cy}) làm dự phòng...", "TIKTOK")
-            adb.tap(cx, cy)
-            time.sleep(0.15)
-            adb.tap(cx, cy)
-            time.sleep(0.5)
-            return True
+    right_col = screen[y_min_crop:y_max_crop, x_min:width]
+    match_tim = matcher.find_match(right_col, "icon_tim")
+    
+    if match_tim:
+        tx, ty, score = match_tim
+        screen_tx = x_min + tx
+        screen_ty = y_min_crop + ty
+        log(f"Bấm tim TikTok tại ({screen_tx}, {screen_ty})", "TIKTOK")
+        save_debug_image(screen, screen_tx, screen_ty, "Click Heart")
+        adb.tap(screen_tx, screen_ty)
+        time.sleep(0.5)
+        return True
     else:
-        log("[TIKTOK] Đang thực hiện Job Follow/Theo dõi...", "TIKTOK")
-        follow_btn = find_tiktok_follow_button(screen, scenario)
-        if follow_btn:
-            fx, fy, area = follow_btn
-            log(f"Bấm Follow TikTok tại ({fx}, {fy})", "TIKTOK")
-            save_debug_image(screen, fx, fy, "Click Follow")
-            adb.tap(fx, fy)
-            time.sleep(0.5)
-            return True
-        else:
-            log("Không tìm thấy nút Follow trên màn hình TikTok.", "WARNING")
-            return False
+        # Bấm trực tiếp vào tọa độ nút tim trắng ở cột phải (khoảng X=650, Y=575)
+        heart_x = int(width * 0.90)
+        heart_y = 575 if scenario == 3 else int(height * 0.52)
+        log(f"Bấm nút tim trắng TikTok tại ({heart_x}, {heart_y})...", "TIKTOK")
+        adb.tap(heart_x, heart_y)
+        time.sleep(0.3)
+        # Double-click nhẹ vào video làm dự phòng bổ sung
+        cx = int(width * 0.5)
+        cy = 300 if scenario == 3 else int(height * 0.4)
+        adb.tap(cx, cy)
+        time.sleep(0.1)
+        adb.tap(cx, cy)
+        time.sleep(0.5)
+        return True
 
 
 def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
@@ -502,10 +502,10 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
         if card_box is not None:
             cx, cy, cw, ch = card_box
         else:
-            cx = max(0, tx - 20)
+            cx = max(0, tx - 30)
             cy = max(0, ty + 60)
-            cw = min(width - cx, 420)
-            ch = min(height - cy, 280)
+            cw = min(width - cx, 430)
+            ch = min(height - cy, 300)
             
         card_bgr = screen[cy:cy+ch, cx:cx+cw]
         card_hsv = cv2.cvtColor(card_bgr, cv2.COLOR_BGR2HSV)
@@ -560,21 +560,25 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
         mask_dot = cv2.bitwise_and(mask_dot, cv2.bitwise_not(mask_dot_g))
         
         cnts_dot, _ = cv2.findContours(mask_dot, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        dot_pts = []
+        dashes = []
         for cd in cnts_dot:
             area = cv2.contourArea(cd)
-            if 1 <= area < 500:
-                for pt in cd:
-                    dot_pts.append(pt[0])
+            if 1 <= area < 100:
+                bx, by, bw, bh = cv2.boundingRect(cd)
+                d_cx = cx + bx + bw // 2
+                d_cy = cy + by + bh // 2
+                # Chỉ lấy các nét đứt nằm trong khoảng giữa của thẻ
+                if (cx + cw * 0.18) <= d_cx <= (cx + cw * 0.82):
+                    dashes.append((d_cx, d_cy))
                     
         x2, y2 = None, None
-        if len(dot_pts) > 10:
-            pts_arr = np.array(dot_pts)
-            dx, dy, dw, dh = cv2.boundingRect(pts_arr)
-            if dw > 20 and dh > 20:
-                x2 = cx + dot_x1 + dx + dw // 2
-                y2 = cy + dy + dh // 2
-                log(f"Phát hiện THỰC TẾ Vòng nét đứt tại ({x2}, {y2})", "CAPTCHA")
+        if len(dashes) >= 5:
+            # Dùng Trung vị (Median) để tìm ra 100% TÂM HÌNH HỌC THỰC TẾ của vòng nét đứt, triệt tiêu mọi nhiễu
+            xs = [p[0] for p in dashes]
+            ys = [p[1] for p in dashes]
+            x2 = int(np.median(xs))
+            y2 = int(np.median(ys))
+            log(f"Phát hiện CHUẨN XÁC Tâm Vòng Nét Đứt tại ({x2}, {y2}) [từ {len(dashes)} nét đứt]", "CAPTCHA")
                 
         if x2 is None or y2 is None:
             x2 = (x1 + x3) // 2
@@ -588,52 +592,54 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
         log(f"Vòng tròn đích: Đích({x3},{y3})", "CAPTCHA")
         log(f"Nét đứt Waypoint: Nét đứt({x2},{y2})", "CAPTCHA")
         
-        # 5. Tạo đường cong Bézier mượt mà (16 bước) đi xuyên qua chính xác điểm Nét đứt (x2, y2)
-        # Tính toán điểm kiểm soát (Control Point) chính xác sao cho đỉnh của đường cong đạt đúng (x2, y2) tại t = 0.5
-        xc = 2.0 * x2 - 0.5 * (x1 + x3)
-        yc = 2.0 * y2 - 0.5 * (y1 + y3)
-        
-        steps = 16
+        # 5. Tạo đường vuốt 2 chặng đi XUYÊN THẲNG VÀO TÂM VÒNG NÉT ĐỨT + RUNG TAY NGƯỜI THẬT
         path = []
-        for i in range(steps + 1):
-            t = i / float(steps)
-            bx = (1.0 - t)**2 * x1 + 2.0 * (1.0 - t) * t * xc + t**2 * x3
-            by = (1.0 - t)**2 * y1 + 2.0 * (1.0 - t) * t * yc + t**2 * y3
-            path.append((int(round(bx)), int(round(by))))
+        steps_per_seg = 16
+        
+        # Chặng 1: (x1, y1) -> ĐI VÀO TÂM VÒNG NÉT ĐỨT (x2, y2)
+        c1x = int(0.5 * (x1 + x2))
+        c1y = int(0.6 * y1 + 0.4 * y2)
+        for i in range(steps_per_seg):
+            t = i / float(steps_per_seg)
+            bx = (1.0 - t)**2 * x1 + 2.0 * (1.0 - t) * t * c1x + t**2 * x2
+            by = (1.0 - t)**2 * y1 + 2.0 * (1.0 - t) * t * c1y + t**2 * y2
+            jx = int(round(bx)) + (random.choice([-1, 0, 1]) if 0 < i < steps_per_seg - 1 else 0)
+            jy = int(round(by)) + (random.choice([-1, 0, 1]) if 0 < i < steps_per_seg - 1 else 0)
+            path.append((jx, jy))
             
-        # 6. Viết kịch bản Monkey Script để duy trì Touch Down session thực tế
+        # Chặng 2: TÂM VÒNG NÉT ĐỨT (x2, y2) -> ĐI VÀO TÂM VÒNG ĐÍCH (x3, y3)
+        c2x = int(0.5 * (x2 + x3))
+        c2y = int(0.4 * y2 + 0.6 * y3)
+        for i in range(steps_per_seg + 1):
+            t = i / float(steps_per_seg)
+            bx = (1.0 - t)**2 * x2 + 2.0 * (1.0 - t) * t * c2x + t**2 * x3
+            by = (1.0 - t)**2 * y2 + 2.0 * (1.0 - t) * t * c2y + t**2 * y3
+            jx = int(round(bx)) + (random.choice([-1, 0, 1]) if 0 < i < steps_per_seg else 0)
+            jy = int(round(by)) + (random.choice([-1, 0, 1]) if 0 < i < steps_per_seg else 0)
+            path.append((jx, jy))
+            
+        # 6. Viết kịch bản Monkey Script (Tổng thời gian vuốt nhanh hơn 0.5s ~ 2.9 - 3.0 giây)
         monkey_lines = []
         monkey_lines.append("type= raw events")
         monkey_lines.append("count= 1")
         monkey_lines.append("speed= 1.0")
         monkey_lines.append("start data >>")
         
-        # DOWN event
+        # DOWN event (chạm giữ 120ms để khóa ngón tay vào khối vuông)
         monkey_lines.append(f"DispatchPointer(0, 0, 0, {path[0][0]}, {path[0][1]}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
-        monkey_lines.append("UserWait(20)")
+        monkey_lines.append("UserWait(120)")
         
-        # MOVE events (Tốc độ 30ms/bước cho 16 bước = khoảng 0.5 giây, kéo siêu tốc ngay sau khi tính toán)
+        # MOVE events (Tốc độ 85ms/bước cho 32 bước = 2.72s + 120ms down + 80ms up = ~2.92 giây, nhanh hơn đúng 0.5s)
         for px, py in path[1:-1]:
             monkey_lines.append(f"DispatchPointer(0, 0, 2, {px}, {py}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
-            monkey_lines.append("UserWait(30)")
+            monkey_lines.append("UserWait(85)")
             
-        # UP event
+        # UP event (thả tay chính xác tại đích)
+        monkey_lines.append(f"DispatchPointer(0, 0, 2, {path[-1][0]}, {path[-1][1]}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
+        monkey_lines.append("UserWait(80)")
         monkey_lines.append(f"DispatchPointer(0, 0, 1, {path[-1][0]}, {path[-1][1]}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
         monkey_content = "\n".join(monkey_lines) + "\n"
         
-        # Ghi file log chi tiết
-        log_file_path = "drag_log.txt"
-        try:
-            with open(log_file_path, "w", encoding="utf-8") as lf:
-                lf.write(f"=== ĐƯỜNG KÉO CAPTCHA BÉZIER (MONKEY) ===\n")
-                lf.write(f"Tọa độ bắt đầu (Blue): ({x1}, {y1})\n")
-                lf.write(f"Tọa độ trung gian (Nét đứt): ({x2}, {y2})\n")
-                lf.write(f"Tọa độ kết thúc (Đích): ({x3}, {y3})\n\n")
-                lf.write(f"=== KỊCH BẢN MONKEY SCRIPT ===\n")
-                lf.write(monkey_content)
-        except Exception as e:
-            log(f"Không thể tạo file debug drag_log.txt: {e}", "WARNING")
-            
         # Ghi file monkey script tạm ở máy tính
         local_path = "monkey_drag.txt"
         try:
@@ -768,14 +774,14 @@ def main():
                     log("Nhận Job mới (Click 'Bắt đầu kiếm xu ngay')...", "JOB")
                     adb.tap(cx, cy)
                     job_clicked = True
-                    time.sleep(3.0)  # Delay 3s cho thao tác Nhận Job
+                    time.sleep(2.0)  # Chờ giao diện chuyển tiếp ổn định
                     break
                 else:
                     match_tab = matcher.find_match(screen, "tab_danh_sach_cong_viec")
                     if match_tab:
                         log("Vuốt màn hình để tìm nút Nhận Job...", "JOB")
                         adb.swipe(360, 1100, 360, 700, duration_ms=400)
-                        time.sleep(2.0)
+                        time.sleep(1.5)
                     else:
                         time.sleep(1.0)
 
@@ -804,7 +810,6 @@ def main():
             tiktok_clicked = False
             need_report_error = False
             report_swipe_count = 0
-            bao_loi_clicked = False
             
             for action_att in range(15):
                 screen = adb.get_screenshot()
@@ -812,107 +817,72 @@ def main():
                     time.sleep(1.0)
                     continue
 
-                # 1. Check popup thông báo OK (Thành công / Lỗi)
+                # 1. Check popup thông báo OK (Sau khi bấm Hoàn thành)
                 match_ok = matcher.find_match(screen, "nut_ok")
                 if match_ok:
                     cx, cy, _ = match_ok
                     log("Bấm OK nhận kết quả Job...", "INFO")
                     adb.tap(cx, cy)
+                    time.sleep(1.5)
                     
-                    match_xoa = matcher.find_match(screen, "txt_job_da_bi_xoa")
-                    if match_xoa:
-                        log("Job đã bị xóa hoặc hết hạn. Tiến hành báo lỗi...", "WARNING")
-                        need_report_error = True
-                        time.sleep(1.5)
-                        continue
-                    
-                    # Xác định thành công hay lỗi
-                    match_success = matcher.find_match(screen, "icon_thanh_cong")
-                    height, width, _ = screen.shape
-                    y1 = max(0, int(cy - 370 * scale))
-                    y2 = min(height, int(cy - 180 * scale))
-                    x1 = max(0, int(cx - 90 * scale))
-                    x2 = min(width, int(cx + 90 * scale))
-                    crop = screen[y1:y2, x1:x2]
-                    hsv_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-                    green_mask = cv2.inRange(hsv_crop, np.array([35, 20, 50]), np.array([85, 255, 255]))
-                    green_pixels = cv2.countNonZero(green_mask)
-                    
-                    if match_success or (green_pixels > 30):
-                        completed_jobs += 1
-                        log(f"Đã hoàn thành thành công {completed_jobs} job!", "SUCCESS")
-                        print("------------------------------------------------------------------")
-                        if completed_jobs > 0 and completed_jobs % 10 == 0:
-                            log(f"Đã chạy {completed_jobs} job. Nghỉ ngơi 60s...", "SUCCESS")
-                            sleep_countdown(60.0, "Nghỉ ngơi phục hồi thiết bị")
-                    else:
-                        log("Hệ thống báo lỗi. Kích hoạt cờ báo lỗi...", "WARNING")
-                        need_report_error = True
-                        time.sleep(1.5)
-                        continue
-                    
-                    # Kết thúc 1 chu trình job
-                    break
-
-                # 2. Xử lý báo lỗi nếu có cờ báo lỗi
-                if need_report_error:
-                    if report_swipe_count > 3:
-                        log("Quá giới hạn tìm nút báo lỗi. Hủy cờ.", "ERROR")
-                        need_report_error = False
-                        report_swipe_count = 0
-                        bao_loi_clicked = False
-                        break
-                    
-                    match_bao_loi = matcher.find_match(screen, "nut_bao_loi")
-                    if match_bao_loi:
-                        log("Click Báo lỗi...", "JOB")
-                        adb.tap(match_bao_loi[0], match_bao_loi[1])
-                        time.sleep(1.2)
+                    # Chụp màn hình mới sau khi bấm OK để kiểm tra xem đã về Home (Thành công) hay còn ở Chi tiết (Lỗi)
+                    post_ok_screen = adb.get_screenshot()
+                    if post_ok_screen is not None:
+                        is_still_detail = matcher.find_match(post_ok_screen, "header_chi_tiet") is not None
+                        match_bao_loi_now = matcher.find_match(post_ok_screen, "nut_bao_loi") is not None
                         
-                        # 1. Vuốt cuộn vừa đủ 2 nhịp ngắn để nút "Gửi báo cáo" nằm đúng giữa khung hình, không bị hụt
-                        log("Vuốt cuộn tìm nút Gửi báo cáo (2 nhịp)...", "JOB")
-                        for _ in range(2):
-                            adb.swipe(360, 1150, 360, 950, duration_ms=250)
-                            time.sleep(0.4)
-                        time.sleep(0.8)
-                        
-                        # 2. Chụp màn hình mới sau khi vuốt để tìm nút Gửi báo cáo
-                        bc_screen = adb.get_screenshot()
-                        if bc_screen is not None:
-                            match_gui_bc = matcher.find_match(bc_screen, "nut_gui_bao_cao")
-                            if match_gui_bc:
-                                log("Gửi báo cáo lỗi...", "JOB")
-                                adb.tap(match_gui_bc[0], match_gui_bc[1])
-                                time.sleep(3.0)  # Delay 3s
+                        if is_still_detail or match_bao_loi_now:
+                            # TRƯỜNG HỢP 1: LỖI (Golike từ chối nhận thưởng, vẫn giữ lại màn hình chi tiết)
+                            log("Hệ thống thông báo chưa hoàn thành (Lỗi). Tiến hành Báo lỗi tự động...", "WARNING")
+                            
+                            # 1. Bấm nút Báo lỗi
+                            match_bl = matcher.find_match(post_ok_screen, "nut_bao_loi")
+                            if match_bl:
+                                log("Click Báo lỗi...", "JOB")
+                                adb.tap(match_bl[0], match_bl[1])
+                                time.sleep(1.5)
                                 
-                                # 3. Chờ và click OK để đóng popup
-                                ok_screen = adb.get_screenshot()
-                                if ok_screen is not None:
-                                    match_ok = matcher.find_match(ok_screen, "nut_ok")
-                                    if match_ok:
-                                        log("Bấm OK xác nhận báo cáo lỗi...", "INFO")
-                                        adb.tap(match_ok[0], match_ok[1])
-                                        time.sleep(3.0)  # Delay 3s
-                        
-                        need_report_error = False
-                        report_swipe_count = 0
-                        bao_loi_clicked = False
-                        break
-                    else:
-                        log("Vuốt tìm nút Báo lỗi...", "WARNING")
-                        adb.swipe(360, 1100, 360, 700, duration_ms=400)
-                        report_swipe_count += 1
-                        time.sleep(1.0)
-                    continue
+                                # 2. Vuốt cuộn 2 nhịp ngắn
+                                log("Vuốt cuộn tìm nút Gửi báo cáo (2 nhịp)...", "JOB")
+                                for _ in range(2):
+                                    adb.swipe(360, 1150, 360, 950, duration_ms=250)
+                                    time.sleep(0.4)
+                                time.sleep(0.8)
+                                
+                                # 3. Bấm Gửi báo cáo
+                                bc_screen = adb.get_screenshot()
+                                if bc_screen is not None:
+                                    match_gui_bc = matcher.find_match(bc_screen, "nut_gui_bao_cao")
+                                    if match_gui_bc:
+                                        log("Gửi báo cáo lỗi...", "JOB")
+                                        adb.tap(match_gui_bc[0], match_gui_bc[1])
+                                        time.sleep(3.0)
+                                        
+                                        # 4. Bấm OK xác nhận
+                                        ok_bc_screen = adb.get_screenshot()
+                                        if ok_bc_screen is not None:
+                                            match_ok_bc = matcher.find_match(ok_bc_screen, "nut_ok")
+                                            if match_ok_bc:
+                                                log("Bấm OK xác nhận báo cáo lỗi...", "INFO")
+                                                adb.tap(match_ok_bc[0], match_ok_bc[1])
+                                                time.sleep(2.0)
+                        else:
+                            # TRƯỜNG HỢP 2: THÀNH CÔNG (Golike cộng xu và tự động đóng về Home)
+                            completed_jobs += 1
+                            log(f"Đã hoàn thành thành công {completed_jobs} job!", "SUCCESS")
+                            print("------------------------------------------------------------------")
+                            if completed_jobs > 0 and completed_jobs % 10 == 0:
+                                log(f"Đã chạy {completed_jobs} job. Nghỉ ngơi 60s...", "SUCCESS")
+                                sleep_countdown(60.0, "Nghỉ ngơi phục hồi thiết bị")
+                                
+                    # Kết thúc chu trình job này và quay về Bước 1
+                    break
 
                 # 3. Giao diện Chi tiết Job: Mở TikTok / Hoàn thành
                 match_header_ct = matcher.find_match(screen, "header_chi_tiet")
                 if match_header_ct:
-                    tx, ty, _ = match_header_ct
-                    # Lấy vùng chứa mô tả của job ngay dưới mốc tiêu đề Chi tiết
-                    zone_job = screen[ty + 10:ty + 120, max(0, tx - 30):min(screen.shape[1], tx + 450)]
+                    zone_job = screen[500:750, 32:688] if scenario == 3 else screen[150:450, :]
                     is_like_job = matcher.find_match(zone_job, "job_like_indicator") is not None
-                    log(f"Loại Job nhận dạng: {'TIM/LIKE' if is_like_job else 'FOLLOW/THEO DÕI'}", "JOB")
                     
                     match_hoan_thanh = matcher.find_match(screen, "nut_hoan_thanh")
                     if match_hoan_thanh and tiktok_clicked and tiktok_action_done:
@@ -927,18 +897,26 @@ def main():
                         adb.tap(match_tiktok[0], match_tiktok[1])
                         tiktok_clicked = True
                         
-                        log("Đang chờ TikTok tải trang và xuất hiện nút tương tác...", "TIKTOK")
-                        time.sleep(3.0)  # Chờ ban đầu để TikTok chuyển app
-                        
-                        tiktok_action_done = False
-                        # Thử quét liên tục trong 8 giây (mỗi giây thử 1 lần cho tới khi trang tải xong)
-                        for load_att in range(8):
+                        if is_like_job:
+                            # Job Tim / Like video: Chờ xem video đủ 15s theo yêu cầu
+                            sleep_countdown(15.0, "Chờ xem video TikTok 15s (Job Tim)")
                             fresh_screen = adb.get_screenshot()
+                            tiktok_action_done = False
                             if fresh_screen is not None:
                                 tiktok_action_done = perform_tiktok_action(fresh_screen, adb, matcher, is_like_job, scenario)
-                                if tiktok_action_done:
-                                    break
-                            time.sleep(1.0)
+                        else:
+                            log("Đang chờ TikTok tải trang và xuất hiện nút tương tác...", "TIKTOK")
+                            time.sleep(3.0)  # Chờ ban đầu để TikTok chuyển app
+                            
+                            tiktok_action_done = False
+                            # Thử quét liên tục trong 10 giây (mỗi giây thử 1 lần cho tới khi trang tải xong)
+                            for load_att in range(10):
+                                fresh_screen = adb.get_screenshot()
+                                if fresh_screen is not None:
+                                    tiktok_action_done = perform_tiktok_action(fresh_screen, adb, matcher, is_like_job, scenario)
+                                    if tiktok_action_done:
+                                        break
+                                time.sleep(1.0)
                         
                         if tiktok_action_done:
                             time.sleep(3.0)  # Chờ đủ 3s sau khi ấn Follow/Tim xong trên TikTok rồi mới bấm Hoàn thành
