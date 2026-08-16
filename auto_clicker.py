@@ -300,10 +300,10 @@ class CaptchaDetector:
             res_title[:, :100] = 0
             res_title[:, 140:] = 0
         else:
-            res_title[:450, :] = 0
-            res_title[850:, :] = 0
-            res_title[:, :160] = 0
-            res_title[:, 300:] = 0
+            res_title[:200, :] = 0
+            res_title[1400:, :] = 0
+            res_title[:, :50] = 0
+            res_title[:, 600:] = 0
             
         _, score_title, _, _ = cv2.minMaxLoc(res_title)
         thresh = 0.30 if scenario == 3 else self.threshold
@@ -437,10 +437,10 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
                     res_title[:, :100] = 0
                     res_title[:, 140:] = 0
                 else:
-                    res_title[:450, :] = 0
-                    res_title[850:, :] = 0
-                    res_title[:, :160] = 0
-                    res_title[:, 300:] = 0
+                    res_title[:200, :] = 0
+                    res_title[1400:, :] = 0
+                    res_title[:, :50] = 0
+                    res_title[:, 600:] = 0
                 
                 _, score_title, _, loc_title = cv2.minMaxLoc(res_title)
                 thresh = 0.30 if scenario == 3 else 0.50
@@ -463,17 +463,28 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
         card_box = None
         for cnt in contours_card:
             x, y, cw, ch = cv2.boundingRect(cnt)
-            if 340 < cw < 520 and 180 < ch < 360 and y > 400:
-                card_box = (x, y, cw, ch)
-                break
+            if scenario == 3:
+                if 340 < cw < 520 and 180 < ch < 360 and y > 400:
+                    card_box = (x, y, cw, ch)
+                    break
+            else:
+                if 750 < cw < 1000 and 900 < ch < 1300 and y > 400:
+                    card_box = (x, y, cw, ch)
+                    break
                 
         if card_box is not None:
             cx, cy, cw, ch = card_box
         else:
-            cx = max(0, tx - 30)
-            cy = max(0, ty + 60)
-            cw = min(width - cx, 430)
-            ch = min(height - cy, 300)
+            if scenario == 3:
+                cx = max(0, tx - 30)
+                cy = max(0, ty + 60)
+                cw = min(width - cx, 430)
+                ch = min(height - cy, 300)
+            else:
+                cx = max(0, tx - 120)
+                cy = max(0, ty + 150)
+                cw = min(width - cx, 900)
+                ch = min(height - cy, 800)
             
         card_bgr = screen[cy:cy+ch, cx:cx+cw]
         card_hsv = cv2.cvtColor(card_bgr, cv2.COLOR_BGR2HSV)
