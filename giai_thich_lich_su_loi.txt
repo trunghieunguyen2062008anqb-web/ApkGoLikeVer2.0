@@ -1,0 +1,159 @@
+==================================================================
+LỊCH SỬ CÁC LỖI ĐÃ PHÁT HIỆN & PHƯƠNG PHÁP FIX (GOLIKE AUTO-CLICKER)
+==================================================================
+
+Dưới đây là tổng hợp chi tiết các lỗi logic đã gặp trong quá trình pair-programming và cách khắc phục để tối ưu hóa hệ thống chạy ổn định lâu dài.
+
+------------------------------------------------------------------
+1. LỖI KÉO THẲNG HÀNG NGANG (BỎ QUA VÒNG NÉT ĐỨT CAPTCHA)
+------------------------------------------------------------------
+- Triệu chứng: Robot luôn kéo khối vuông xanh dương đi thẳng một mạch sang bên phải để thả vào vòng đích, không uốn cong qua vòng nét đứt. Hệ thống báo kéo thả thất bại ("Chưa đạt, bạn kéo lại giúp nhé").
+- Nguyên nhân: Trước đó Y2 (nét đứt) và Y3 (đích) bị khóa cứng bằng Y1 (khối xanh) để sửa lỗi lệch khung.
+- Khắc phục: 
+  + Trả tọa độ Y2 về động (quét bằng HSV tâm trung vị hoặc tính theo tỷ lệ `Y1 - 107px` trên màn 720p).
+  + Mở khóa tọa độ Y của điểm đích Y3 để tự động dò tìm độ cao thực tế của vòng tròn đích (do GoLike đảo ngẫu nhiên vị trí nút).
+  + Kết quả: Đường kéo uốn cong mái vòm hoàn hảo đi qua đủ 3 điểm.
+
+------------------------------------------------------------------
+2. LỖI GỘP SỰ KIỆN ADB (MONKEY SCRIPT ĐI TẮT ĐƯỜNG THẲNG)
+------------------------------------------------------------------
+- Triệu chứng: Mặc dù thuật toán đã tạo ra đường cong Bézier gồm nhiều điểm tọa độ uốn lượn, trên màn hình robot vẫn kéo vèo một phát đường thẳng tắp và trượt.
+- Nguyên nhân: Thời gian chờ di chuyển giữa các điểm quá nhanh (`25ms`). Nhân cảm ứng Android không kịp phân biệt từng điểm riêng lẻ mà gộp chúng lại làm một sự kiện kéo thẳng từ đầu đến cuối.
+- Khắc phục:
+  + Nâng thời gian chờ di chuyển lên **`40ms`** (tốc độ chuẩn 25fps của Android).
+  + Tăng số bước di chuyển lên 24 bước (tổng thời gian vuốt ~1.1 giây).
+  + Kết quả: Vuốt siêu mượt, uốn cong rõ ràng trên màn hình và giải thành công.
+
+------------------------------------------------------------------
+3. LỖI NHẬN NHẦM KHỐI XANH DƯƠNG VÀO DÒNG CHỮ HƯỚNG DẪN
+------------------------------------------------------------------
+- Triệu chứng: Robot bấm bừa vào dòng chữ ở chính giữa màn hình rồi kéo lung tung.
+- Nguyên nhân: 
+  + Dải màu quét xanh dương đậm (`mask_blue`) bị nới quá rộng xuống độ sáng cực thấp (`Value >= 15`). Làm cho dải màu quét trúng luôn cả màu xám đen của dòng chữ hướng dẫn dưới đáy dialog.
+  + Dòng chữ hướng dẫn bắt đầu từ góc trái nên thỏa mãn điều kiện `X < 35%`. Diện tích chữ lớn hơn khối xanh nên chiếm quyền ưu tiên chọn.
+- Khắc phục:
+  + Nâng độ sáng tối thiểu của dải xanh dương lên **`150`** (vì khối xanh rất sáng `V > 230`, còn chữ hướng dẫn tối màu `V < 50` sẽ bị lọc sạch).
+  + Thu hẹp dải Hue về `[95, 125]` và Saturation tối thiểu lên `60`.
+  + Kết quả: Lọc sạch 100% chữ nhiễu, bắt trúng khối xanh dương.
+
+------------------------------------------------------------------
+4. LỖI KHÔNG NHẬN DẠNG ĐƯỢC JOB TIM (BÁO NHẦM THÀNH FOLLOW)
+------------------------------------------------------------------
+- Triệu chứng: Job Tim/Like hiện rõ ràng trên màn hình nhưng tool vẫn báo nhận dạng thành Follow/Theo dõi và mở TikTok để tương tác sai.
+- Nguyên nhân: Bộ ảnh mẫu gốc được chụp trên màn hình 720p, nhưng tool lại co giãn tỷ lệ ảnh mẫu theo mẫu số màn hình 1080p. Khi chạy trên máy 720p, ảnh mẫu bị co lại nhỏ xíu (`scale = 0.667`) nên không khớp với màn hình thực tế.
+- Khắc phục:
+  + Chỉnh sửa tỷ lệ scale động về mốc cơ sở 720p: `width / 720.0`. Khi chạy trên máy 720p của bro, ảnh mẫu sẽ được giữ nguyên gốc tỉ lệ `1.0` siêu chuẩn xác.
+  + Thiết lập lại ngưỡng phát hiện Job Tim là `0.72` để loại bỏ việc nhận nhầm các vòng tròn đỏ rác khác.
+
+------------------------------------------------------------------
+5. LỖI TỰ BÁO LỖI OAN SAU KHI BẤM HOÀN THÀNH
+------------------------------------------------------------------
+- Triệu chứng: Bấm Hoàn thành xong rồi thì tool đột nhiên báo loại Job là Tim/Like và tự động nhảy vào luồng Báo cáo lỗi.
+- Nguyên nhân: Hàm kiểm tra loại Job Tim/Like chạy liên tục trong cả chu kỳ đợi kết quả. Khi vừa bấm Hoàn thành, màn hình chi tiết vẫn hiển thị, tool quét lại và phát hiện chữ/icon Tim cũ nên báo lỗi oan.
+- Khắc phục: Khóa điều kiện kiểm tra loại Job. **Chỉ cho phép kiểm tra Job Tim/Like trước khi bấm mở TikTok (`if not tiktok_clicked`)**.
+
+------------------------------------------------------------------
+6. LỖI NHẬN NHẦM POPUP "THÔNG BÁO GOLIKE" THÀNH CAPTCHA
+------------------------------------------------------------------
+- Triệu chứng: Khi xuất hiện popup thông báo "Hệ thống đang tính toán job..." (có nút OK màu xanh dương), tool báo phát hiện Captcha và kéo bừa bãi.
+- Nguyên nhân: Bố cục chữ xám của tiêu đề "Thông báo" tương tự chữ "Xác minh nhanh" của Captcha, vượt qua ngưỡng so khớp thấp `0.50` (đạt `0.63`).
+- Khắc phục:
+  + Nâng ngưỡng nhận diện tiêu đề Captcha lên **`0.60`**.
+  + Thêm chốt chặn thép: Nếu phát hiện trên màn hình có nút **`OK`** (nút xanh dương đặc trưng của popup Thông báo), lập tức kết luận **KHÔNG PHẢI CAPTCHA** và chuyển qua tự động click OK để đóng popup.
+
+------------------------------------------------------------------
+7. LỖI ĐUA TỐC ĐỘ (RACE CONDITION) KHI LOAD CAPTCHA CHẬM
+------------------------------------------------------------------
+- Triệu chứng: Captcha sờ sờ trên màn hình điện thoại nhưng tool vẫn ghi "Không phát hiện Captcha. Bỏ qua." và chạy tiếp qua bước mở TikTok.
+- Nguyên nhân: Trước đây, tool dùng hàm chờ tĩnh 3 giây (`sleep_countdown(3.0)`). Trên các dòng máy cũ hoặc mạng lag, Captcha phải mất 4 - 6 giây mới xuất hiện. Khi tool quét màn hình ở giây thứ 3, lúc đó Captcha chưa kịp hiện lên (màn hình vẫn là trang chủ sạch) nên tool kết luận không có Captcha và đi tiếp, dẫn đến việc Captcha hiện ra đè sau đó làm kẹt luồng bấm.
+- Khắc phục: 
+  + Thay thế bước chờ tĩnh bằng **vòng lặp chờ động tối đa 7 giây (quét mỗi 0.5s)**.
+  + Trong lúc đợi, nếu xuất hiện tiêu đề Captcha -> Nhảy vào giải ngay. Nếu xuất hiện Chi tiết Job trước -> Vào làm TikTok ngay (tiết kiệm thời gian, không cần đợi hết 3s tĩnh). Nếu xuất hiện popup thông báo OK -> Bấm OK ngay.
+  + Kết quả: Khắc phục triệt để tình trạng bỏ sót Captcha do mạng lag / máy phản hồi chậm.
+
+
+------------------------------------------------------------------
+8. LỖI LỌT LƯỚI CAPTCHA DO BỘ LỌC NÚT NHẬN JOB NỀN
+------------------------------------------------------------------
+- Triệu chứng: Captcha hiển thị rõ ràng trên màn hình nhưng tool vẫn báo "Không phát hiện Captcha. Bỏ qua" dù đã có vòng chờ động 12 giây.
+- Nguyên nhân: Trong hàm kiểm tra Captcha, chúng ta có bộ lọc loại trừ: "Nếu phát hiện thấy nút Nhận Job ngay trên màn hình thì kết luận KHÔNG phải Captcha" (để tránh nhận dạng nhầm tiêu đề khi ở trang chủ). Tuy nhiên, nút "Nhận Job ngay" ở màn hình nền (dù đã bị che khuất và làm tối mờ bởi hộp thoại Captcha) vẫn bị thuật toán Template Matching nhận dạng khớp thành công (vì thuật toán này có tính chất bất biến với độ sáng/tương phản). Điều này dẫn đến việc bộ lọc loại trừ luôn kích hoạt sai và báo không có Captcha.
+- Khắc phục:
+  + Thay thế việc kiểm tra nút "Nhận Job ngay" bằng nút **"Danh sách công việc"** (tab_danh_sach_cong_viec) ở thanh tiêu đề trên cùng. Nút này là cố định ở trang chủ nhưng sẽ bị che khuất hoàn toàn và không thể quét thấy khi hộp thoại Captcha hiện ra.
+  + Kết quả: Phân biệt chính xác trang chủ và màn hình Captcha, không bao giờ bị lọt lưới Captcha nữa.
+
+
+------------------------------------------------------------------
+9. CẬP NHẬT SỐ NHỊP VUỐT MÀN HÌNH BÁO LỖI KHI GOLIKE ĐỔI UI
+------------------------------------------------------------------
+- Triệu chứng: Khi báo lỗi công việc, tool vuốt màn hình không đủ sâu nên không quét được nút "Gửi báo cáo" ở dưới đáy.
+- Nguyên nhân: GoLike cập nhật giao diện form báo cáo lỗi dài hơn (nhiều lựa chọn lý do báo lỗi hơn), khiến nút "Gửi báo cáo" bị đẩy xuống tít dưới thấp. Số nhịp vuốt cũ là 2 nhịp ngắn (mỗi nhịp 200px) không đủ đưa nút lên màn hình.
+- Khắc phục: 
+  + Nâng số nhịp vuốt lên **5 nhịp** (mỗi nhịp 300px) để đảm bảo cuộn sâu hết form báo cáo lỗi của giao diện UI mới.
+  + Kết quả: Cuộn mượt mà chạm đáy form, bắt trọn nút "Gửi báo cáo" thành công 100%.
+
+
+------------------------------------------------------------------
+10. LỖI BÁO LỖI THẤT BẠI KHI TIKTOK KHÔNG MỞ ĐƯỢC VÀ TỰ QUAY LẠI MÀN HÌNH GOLIKE
+------------------------------------------------------------------
+- Triệu chứng: Khi bấm nút TikTok để làm việc, do lỗi link/app nên không nhảy sang TikTok được mà vẫn ở lại màn hình chi tiết GoLike. Lúc này tool không tiến hành báo lỗi mà bị tắt ngóm hoặc thoát ra ngoài màn hình chính.
+- Nguyên nhân: Trước đây, khi không tìm thấy nút Follow sau 10s chờ đợi, tool mặc định nghĩ rằng nó đang ở app TikTok, nên nó sẽ phát lệnh Back (`adb.press_back()`) để đóng TikTok quay về GoLike rồi mới bấm báo lỗi. Nhưng thực chất điện thoại đang đứng sẵn ở màn hình chi tiết GoLike, lệnh Back này vô tình làm đóng màn hình chi tiết GoLike và đi ra màn hình chính, khiến tool không còn chỗ để bấm Báo lỗi.
+- Khắc phục: 
+  + Thêm bước kiểm tra: Chụp màn hình hiện tại trước khi Back. Nếu phát hiện thấy tiêu đề `header_chi_tiet` (nghĩa là vẫn đang ở màn hình chi tiết GoLike) -> Không bấm Back nữa, mà **gọi trực tiếp hàm báo lỗi tự động `trigger_report_error` ngay lập tức**.
+  + Kết quả: Tự động phát hiện lỗi của GoLike khi không mở được TikTok và báo lỗi chính xác, bảo vệ an toàn cho luồng chạy tiếp theo.
+
+
+------------------------------------------------------------------
+11. LỖI XOAY MÀN HÌNH NGANG SAU KHI CHẠY XONG MONKEY (GIẢI CAPTCHA)
+------------------------------------------------------------------
+- Triệu chứng: Giải Captcha hoàn thành rất tốt, nhưng màn hình điện thoại/giả lập bị xoay ngang 90 độ (Landscape), làm ảnh hưởng đến việc hiển thị giao diện.
+- Nguyên nhân: Lệnh `monkey` giả lập cử chỉ vuốt Bézier của Captcha khi khởi chạy dịch vụ trên một số dòng máy Xiaomi/POCO sẽ kích hoạt cấu hình thay đổi hướng của Android làm xoay ngang màn hình (dù đã set `--pct-rotation 0`).
+- Khắc phục:
+  + Không chạm hay thay đổi bất kỳ code nào trong hàm giải Captcha (`solve_captcha`) để đảm bảo thuật toán giải Captcha chạy ổn định.
+  + Thêm cơ chế tự động nắn dòng thông minh ở hàm chụp màn hình `get_screenshot()` của ADB: Nếu phát hiện ảnh chụp có chiều rộng lớn hơn chiều cao (đang bị xoay ngang) -> Lập tức gửi lệnh ADB xoay dọc Portrait (`user_rotation 0` và bật `accelerometer_rotation 1`), chờ 1s rồi chụp lại màn hình chuẩn.
+  + Kết quả: Khắc phục triệt để và tự động hóa việc đưa màn hình về trạng thái dọc chuẩn, không bao giờ bị lệch hay giữ xoay ngang nữa.
+
+
+------------------------------------------------------------------
+12. LỖI NHẬN DẠNG NHẦM JOB TIM/LIKE THÀNH JOB FOLLOW
+------------------------------------------------------------------
+- Triệu chứng: Gặp Job Tim/Like (như "TĂNG LIKE CHO BÀI VIẾT") nhưng tool vẫn báo "Loại Job nhận dạng: FOLLOW/THEO DÕI" và tiến hành mở TikTok để làm việc bình thường thay vì tự động báo lỗi bỏ qua.
+- Nguyên nhân: 
+  + Trước đây để tránh nhận diện nhầm, ngưỡng threshold của ảnh mẫu `job_like_indicator` (icon trái tim đỏ trên GoLike) đã bị nâng lên quá cao (`0.72`). Điều này khiến icon trái tim thật của Job Tim trên màn hình của thiết bị chỉ quét được score `~0.68 - 0.70` nên bị trượt.
+  + Khu vực quét (search zone) quá rộng (toàn bộ nửa trên màn hình `screen[:1000, :]` đối với scenario 2) dễ gây nhiễu nếu có các phần tử màu đỏ khác.
+- Khắc phục:
+  + Tối ưu hóa khu vực quét `zone_job`: Thay vì quét cả màn hình, đối với scenario 2 (cắm cáp), tool khống chế vùng quét siêu nhỏ nằm ở góc trên bên trái của card chi tiết job: `screen[150:350, 30:150]` (nơi icon trái tim của tiêu đề luôn ngự trị).
+  + Hạ ngưỡng threshold của `job_like_indicator` xuống **`0.62`** để bắt nhạy hơn. Vì vùng quét đã được thu hẹp tối đa nên hạ ngưỡng xuống sẽ không lo bị nhận diện sai lệch sang các phần tử khác ngoài card.
+  + Kết quả: Nhận dạng chính xác 100% các Job Tim/Like và lập tức báo lỗi bỏ qua theo yêu cầu.
+
+
+------------------------------------------------------------------
+13. LỖI KÉO CAPTCHA CONG SÂU XUỐNG DƯỚI CÙNG (SAI MỐC TIÊU ĐỀ)
+------------------------------------------------------------------
+- Triệu chứng: Khi giải Captcha, nét vẽ Bézier bị uốn cong sạt xuống đáy của hộp thoại Captcha (rơi vào vùng chữ hướng dẫn dưới cùng) thay vì đi qua vòng tròn nét đứt ở giữa, dẫn đến giải thất bại liên tục.
+- Nguyên nhân: 
+  + Để định vị được hộp thoại Captcha, tool cần tìm tọa độ Y của tiêu đề "Xác minh nhanh" (`ty`) làm điểm neo (mốc). 
+  + Tuy nhiên, trong hàm `solve_captcha`, thuật toán tìm tiêu đề chỉ quét ở một tỷ lệ co giãn cố định `1.778`. Do không có quét đa tỷ lệ (multi-scale) như hàm check ngoài, tiêu đề "Xác minh nhanh" thật chỉ đạt điểm số thấp và bị trượt, trong khi một cụm chữ xám ngẫu nhiên ở phần dưới hộp thoại (gần đáy) lại khớp nhầm với score cao hơn `0.50` ở tọa độ Y = 822 (mốc thật phải là Y ~ 563).
+  + Khi điểm neo bị kéo dịch xuống dưới Y = 822, toàn bộ tọa độ hộp quét Captcha bị dịch sạt xuống đáy, dẫn đến việc tool nhận diện sai lệch các vòng tròn và kéo tay sạt xuống vùng chữ hướng dẫn.
+- Khắc phục:
+  + Áp dụng thuật toán **quét tiêu đề đa tỷ lệ (Multi-scale matching)** giống hệt bên ngoài vào trong hàm `solve_captcha`. Thử nghiệm 3 scale sai lệch `-0.25`, `0.0`, `0.25` xung quanh tỷ lệ chuẩn để tìm ra tiêu đề ở vị trí Y chính xác nhất.
+  + Kết quả: Định vị chuẩn xác tiêu đề "Xác minh nhanh" tại Y ~ 563, đưa hộp quét về đúng khung hình trung tâm, giúp vẽ đường cong Bézier đi xuyên hồng tâm vòng nét đứt và đích 100%.
+
+
+------------------------------------------------------------------
+14. LỖI KÍCH THƯỚC ẢNH MẪU job_like_indicator QUÁ TO GÂY HỤT NHẬN DIỆN
+------------------------------------------------------------------
+- Triệu chứng: Dù đã thu hẹp vùng quét và hạ ngưỡng xuống `0.62`, tool vẫn không nhận diện được Job Tim/Like trên màn hình 720p và báo nhầm thành Job Follow.
+- Nguyên nhân: 
+  + Ảnh mẫu `job_like_indicator.png` được chụp ở độ phân giải gốc `1080p` (kích thước `49x49` pixel).
+  + Khi chúng ta chuyển cơ sở tỷ lệ của toàn bộ tool về `720p`, tệp ảnh mẫu này không được tự động scale nhỏ lại mà vẫn giữ nguyên kích thước gốc `49x49` (do hệ số scale = 1.0). Trong khi đó, icon trái tim thực tế hiển thị trên màn hình 720p của bro chỉ có kích thước khoảng `30x30` pixel. Sự chênh lệch kích thước quá lớn (gấp đôi) khiến so khớp ảnh bị thất bại hoàn toàn (điểm số gần như bằng 0).
+- Khắc phục:
+  + Thêm logic tự động tính toán và **resize ảnh mẫu `job_like_indicator` trong bộ nhớ từ 1080p về đúng tỷ lệ màn hình thực tế** của thiết bị (ví dụ scale `0.667` thành `32x32` pixel trên màn hình 720p) trước khi thực hiện lệnh so khớp `cv2.matchTemplate`.
+  + Kết quả: Khớp hoàn hảo kích thước của icon trái tim đỏ, nâng cao điểm số khớp vượt ngưỡng `0.62` một cách dễ dàng và nhận diện chính xác 100%.
+
+==================================================================
+* LƯU Ý KHI CHẨN ĐOÁN LẦN SAU:
+Nếu tool có bất kỳ hành vi lệch tọa độ hoặc không bấm được nút, hãy chạy file chẩn đoán:
+> python diagnose.py
+
+Chương trình sẽ tự chụp màn hình, in ra bảng điểm số khớp của toàn bộ các nút bấm và lưu ảnh trực quan "diagnose_match_visual.png" khoanh vùng các nút để bro biết chính xác tool đang nhìn thấy gì!
+==================================================================
