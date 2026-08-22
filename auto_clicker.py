@@ -1048,7 +1048,7 @@ def main():
                         if scenario == 3:
                             zone_job = screen[500:750, 32:688]
                         else:
-                            zone_job = screen[150:350, 30:150]
+                            zone_job = screen[160:600, :]
                         # Tự động resize ảnh mẫu job_like_indicator nếu nó ở 1080p (để tương thích 720p)
                         temp_data = matcher.loaded_templates.get("job_like_indicator")
                         if temp_data is not None:
