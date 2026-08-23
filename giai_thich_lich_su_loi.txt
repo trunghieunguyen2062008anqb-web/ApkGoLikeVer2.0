@@ -166,6 +166,18 @@ Dưới đây là tổng hợp chi tiết các lỗi logic đã gặp trong quá
     Nếu 1 trong 2 kiểm tra này phát hiện khớp -> Khẳng định ngay là Job Tim/Like và lập tức báo lỗi.
   + Kết quả: Đạt độ chính xác tuyệt đối, loại bỏ hoàn toàn rủi ro lọt job kể cả khi icon bị mờ hay biến dạng.
 
+
+------------------------------------------------------------------
+16. LỖI NHẬN NHẦM JOB FOLLOW THÀNH JOB LIKE (TĂNG LƯỢT vs TĂNG LIKE)
+------------------------------------------------------------------
+- Triệu chứng: Gặp Job Follow ("TĂNG LƯỢT THEO DÕI") nhưng tool lại nhận dạng nhầm thành Job Tim/Like và tự động báo lỗi bỏ qua.
+- Nguyên nhân: 
+  + Ảnh mẫu chữ trước đây chứa cụm `"TĂNG LIKE"`. Khi so khớp trên màn hình xuất hiện chữ `"TĂNG LƯỢT THEO DÕI"`, do cả hai cụm đều chia sẻ tiền tố `"TĂNG L"` nên đạt điểm số khớp khá cao (khoảng `0.74 - 0.76`), vượt qua ngưỡng cũ là `0.70` và kích hoạt báo lỗi nhầm.
+- Khắc phục:
+  + Cắt bớt ảnh mẫu chữ chỉ giữ lại đúng từ duy nhất: **`"LIKE"`** (kích thước `55x66`). Từ này hoàn toàn không có sự tương đồng hay chia sẻ ký tự nào với chữ `"LƯỢT"` hay `"THEO DÕI"`.
+  + Nâng ngưỡng threshold của ảnh mẫu `"LIKE"` (`job_like_text`) lên **`0.80`** (vì từ ngắn nên khi khớp đúng chữ trên màn hình Like điểm số sẽ cực cao `~0.90+`, còn màn hình Follow chỉ đạt tối đa `0.66`).
+  + Kết quả: Khắc phục triệt để lỗi nhận dạng nhầm, phân biệt rạch ròi 100% giữa Job Follow ("TĂNG LƯỢT") và Job Like ("TĂNG LIKE").
+
 ==================================================================
 * LƯU Ý KHI CHẨN ĐOÁN LẦN SAU:
 Nếu tool có bất kỳ hành vi lệch tọa độ hoặc không bấm được nút, hãy chạy file chẩn đoán:
