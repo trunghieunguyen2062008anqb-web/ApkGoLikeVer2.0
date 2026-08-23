@@ -33,6 +33,7 @@ TEMPLATES_CONFIG = {
     "nut_ok": {"filename": "nut_ok.png", "threshold": 0.60},
     "icon_tim": {"filename": "icon_tim.png", "threshold": 0.75},
     "job_like_indicator": {"filename": "job_like_indicator.png", "threshold": 0.62},
+    "job_like_text": {"filename": "job_like_text.png", "threshold": 0.85},
     "nut_bao_loi": {"filename": "nut_bao_loi.png", "threshold": 0.70},
     "nut_gui_bao_cao": {"filename": "nut_gui_bao_cao.png", "threshold": 0.70},
     "txt_job_da_bi_xoa": {"filename": "txt_job_da_bi_xoa.png", "threshold": 0.75},
@@ -1049,7 +1050,8 @@ def main():
                             zone_job = screen[500:750, 32:688]
                         else:
                             zone_job = screen[160:600, :]
-                        # Tự động resize ảnh mẫu job_like_indicator nếu nó ở 1080p (để tương thích 720p)
+                        is_like_job = False
+                        # 1. Check by icon (job_like_indicator)
                         temp_data = matcher.loaded_templates.get("job_like_indicator")
                         if temp_data is not None:
                             job_like_scale = screen.shape[1] / 1080.0
@@ -1059,11 +1061,12 @@ def main():
                                 temp_img = cv2.resize(temp_data["image"], (tw, th), interpolation=cv2.INTER_AREA)
                                 res = cv2.matchTemplate(zone_job, temp_img, cv2.TM_CCOEFF_NORMED)
                                 _, max_val, _, _ = cv2.minMaxLoc(res)
-                                is_like_job = max_val >= 0.62
-                            else:
-                                is_like_job = False
-                        else:
-                            is_like_job = False
+                                if max_val >= 0.62:
+                                    is_like_job = True
+                        
+                        # 2. Check by text (job_like_text)
+                        if not is_like_job:
+                            is_like_job = matcher.find_match(zone_job, "job_like_text") is not None
                         log(f"Loại Job nhận dạng: {'TIM/LIKE' if is_like_job else 'FOLLOW/THEO DÕI'}", "JOB")
                         
                         if is_like_job:
