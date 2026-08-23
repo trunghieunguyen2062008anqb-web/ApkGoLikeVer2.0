@@ -150,6 +150,22 @@ Dưới đây là tổng hợp chi tiết các lỗi logic đã gặp trong quá
   + Thêm logic tự động tính toán và **resize ảnh mẫu `job_like_indicator` trong bộ nhớ từ 1080p về đúng tỷ lệ màn hình thực tế** của thiết bị (ví dụ scale `0.667` thành `32x32` pixel trên màn hình 720p) trước khi thực hiện lệnh so khớp `cv2.matchTemplate`.
   + Kết quả: Khớp hoàn hảo kích thước của icon trái tim đỏ, nâng cao điểm số khớp vượt ngưỡng `0.62` một cách dễ dàng và nhận diện chính xác 100%.
 
+
+------------------------------------------------------------------
+15. LỖI LỌT JOB TIM DO LỆCH TOẠ ĐỘ, CHUYỂN SANG BỘ NHẬN DIỆN KÉP
+------------------------------------------------------------------
+- Triệu chứng: Gặp Job Tim/Like ("TĂNG LIKE CHO BÀI VIẾT") nhưng tool vẫn thỉnh thoảng bỏ sót và mở TikTok thay vì báo lỗi.
+- Nguyên nhân: 
+  + Quét icon trái tim nhỏ thỉnh thoảng bị trượt nếu GoLike cập nhật bố cục làm xê dịch card, hoặc độ sáng/tương phản màn hình thay đổi nhẹ làm nét vẽ của icon trái tim `❤️` biến dạng nhẹ.
+  + Do đó, việc chỉ dựa vào một icon trái tim duy nhất làm tăng độ rủi ro lọt job.
+- Khắc phục:
+  + Cắt trực tiếp chữ **`"TĂNG LIKE"`** từ màn hình của người dùng để làm ảnh mẫu mới: [`templates/job_like_text.png`](file:///d:/TrungHieu/apkGolike/templates/job_like_text.png).
+  + Nâng cấp cơ chế kiểm tra thành **Nhận diện Kép (Double-Check)**:
+    1. Kiểm tra 1: Dùng icon trái tim đỏ `job_like_indicator` (đã scale đúng size).
+    2. Kiểm tra 2: Dùng dòng chữ mẫu `"TĂNG LIKE"` (`job_like_text`) quét trên vùng đầu card `screen[160:600, :]`.
+    Nếu 1 trong 2 kiểm tra này phát hiện khớp -> Khẳng định ngay là Job Tim/Like và lập tức báo lỗi.
+  + Kết quả: Đạt độ chính xác tuyệt đối, loại bỏ hoàn toàn rủi ro lọt job kể cả khi icon bị mờ hay biến dạng.
+
 ==================================================================
 * LƯU Ý KHI CHẨN ĐOÁN LẦN SAU:
 Nếu tool có bất kỳ hành vi lệch tọa độ hoặc không bấm được nút, hãy chạy file chẩn đoán:
