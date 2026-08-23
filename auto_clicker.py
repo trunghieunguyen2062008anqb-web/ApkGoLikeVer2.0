@@ -33,7 +33,7 @@ TEMPLATES_CONFIG = {
     "nut_ok": {"filename": "nut_ok.png", "threshold": 0.60},
     "icon_tim": {"filename": "icon_tim.png", "threshold": 0.75},
     "job_like_indicator": {"filename": "job_like_indicator.png", "threshold": 0.55},
-    "job_like_text": {"filename": "job_like_text.png", "threshold": 0.70},
+    "job_like_text": {"filename": "job_like_text.png", "threshold": 0.80},
     "nut_bao_loi": {"filename": "nut_bao_loi.png", "threshold": 0.70},
     "nut_gui_bao_cao": {"filename": "nut_gui_bao_cao.png", "threshold": 0.70},
     "txt_job_da_bi_xoa": {"filename": "txt_job_da_bi_xoa.png", "threshold": 0.75},
