@@ -32,8 +32,8 @@ TEMPLATES_CONFIG = {
     "nut_hoan_thanh": {"filename": "nut_hoan_thanh.png", "threshold": 0.75},
     "nut_ok": {"filename": "nut_ok.png", "threshold": 0.60},
     "icon_tim": {"filename": "icon_tim.png", "threshold": 0.75},
-    "job_like_indicator": {"filename": "job_like_indicator.png", "threshold": 0.62},
-    "job_like_text": {"filename": "job_like_text.png", "threshold": 0.85},
+    "job_like_indicator": {"filename": "job_like_indicator.png", "threshold": 0.55},
+    "job_like_text": {"filename": "job_like_text.png", "threshold": 0.70},
     "nut_bao_loi": {"filename": "nut_bao_loi.png", "threshold": 0.70},
     "nut_gui_bao_cao": {"filename": "nut_gui_bao_cao.png", "threshold": 0.70},
     "txt_job_da_bi_xoa": {"filename": "txt_job_da_bi_xoa.png", "threshold": 0.75},
@@ -1061,7 +1061,7 @@ def main():
                                 temp_img = cv2.resize(temp_data["image"], (tw, th), interpolation=cv2.INTER_AREA)
                                 res = cv2.matchTemplate(zone_job, temp_img, cv2.TM_CCOEFF_NORMED)
                                 _, max_val, _, _ = cv2.minMaxLoc(res)
-                                if max_val >= 0.62:
+                                if max_val >= temp_data["threshold"]:
                                     is_like_job = True
                         
                         # 2. Check by text (job_like_text)
