@@ -178,6 +178,21 @@ Dưới đây là tổng hợp chi tiết các lỗi logic đã gặp trong quá
   + Nâng ngưỡng threshold của ảnh mẫu `"LIKE"` (`job_like_text`) lên **`0.80`** (vì từ ngắn nên khi khớp đúng chữ trên màn hình Like điểm số sẽ cực cao `~0.90+`, còn màn hình Follow chỉ đạt tối đa `0.66`).
   + Kết quả: Khắc phục triệt để lỗi nhận dạng nhầm, phân biệt rạch ròi 100% giữa Job Follow ("TĂNG LƯỢT") và Job Like ("TĂNG LIKE").
 
+
+------------------------------------------------------------------
+17. LỖI XOAY NGANG MÀN HÌNH DO TỰ ĐỘNG XOAY (Auto-Rotate = 1)
+------------------------------------------------------------------
+- Triệu chứng: Khi bot chạy, điện thoại thỉnh thoảng đột ngột tự xoay ngang màn hình (Landscape) khiến bot dừng hoạt động.
+- Nguyên nhân: 
+  + Trước đây khi phát hiện xoay ngang, tool gửi lệnh set `user_rotation` về `0` (Portrait) nhưng lại bật `accelerometer_rotation` lên `1` (bật Auto-Rotate). 
+  + Khi bật Auto-Rotate, nếu điện thoại nằm trên bàn không phẳng hoặc hơi nghiêng nhẹ, Android sẽ lập tức kích hoạt xoay ngang. Đồng thời công cụ `monkey` khi chạy kịch bản đôi lúc cũng tự kích hoạt xoay màn hình nếu tính năng Auto-Rotate bật.
+- Khắc phục:
+  + Cấu hình khóa cứng hoàn toàn hướng màn hình dọc (Portrait): Set `user_rotation = 0` (Portrait) và set `accelerometer_rotation = 0` (Tắt Auto-Rotate).
+  + Tích hợp khóa cứng này vào 2 nơi:
+    1. Khi bot vừa khởi động trong hàm `main()`.
+    2. Trong hàm tự động nắn dòng của `get_screenshot()` nếu phát hiện bị xoay ngang.
+  + Kết quả: Khóa cứng màn hình dọc vĩnh viễn, không bao giờ bị xoay ngang tự động kể cả khi lắc hay nghiêng thiết bị.
+
 ==================================================================
 * LƯU Ý KHI CHẨN ĐOÁN LẦN SAU:
 Nếu tool có bất kỳ hành vi lệch tọa độ hoặc không bấm được nút, hãy chạy file chẩn đoán:
