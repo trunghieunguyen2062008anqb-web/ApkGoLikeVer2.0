@@ -253,6 +253,21 @@ Dưới đây là tổng hợp chi tiết các lỗi logic đã gặp trong quá
     - Nếu phát hiện ở Chọn kênh (khớp `btn_tiktok_channel`) -> Click "Tiktok" và chờ 3.0s để vào thẳng trang nhận Job.
   + Kết quả: Quy trình khép kín tự phục hồi hoàn tất, bot tự mở app, tự động bấm chuyển màn hình và tiếp tục làm việc hoàn hảo không tì vết.
 
+
+------------------------------------------------------------------
+22. NÂNG CẤP CƠ CHẾ WHITELIST CHỈ LÀM JOB FOLLOW (TỰ BỎ QUA JOB LẠ)
+------------------------------------------------------------------
+- Triệu chứng: GoLike liên tục bày thêm các loại Job mới (như "TĂNG SHARE", "TĂNG COMMENT", ...) xen kẽ vào danh sách, khiến bot phải liên tục cập nhật bộ lọc loại trừ (Blacklist) gây tốn tài nguyên và không kịp ứng biến.
+- Nguyên nhân: 
+  + Cách tiếp cận Blacklist (nhận diện từng loại Job Tim/Like để bỏ qua) không hiệu quả khi GoLike đẻ thêm các Job lạ khác. 
+- Khắc phục:
+  + Chuyển đổi hoàn toàn sang **Cơ chế Whitelist (Chỉ làm Job Follow, bỏ qua mọi thứ còn lại)**:
+    1. Dựng lại ảnh chụp màn hình Follow ở tỷ lệ `720p` chuẩn và cắt dòng chữ **`"THEO DÕI"`** làm ảnh mẫu whitelist: [`templates/job_follow_text.png`](file:///d:/TrungHieu/apkGolike/templates/job_follow_text.png).
+    2. Thay đổi logic kiểm tra:
+       - Quét vùng tiêu đề của Job. Nếu khớp chữ `"THEO DÕI"` -> Xác nhận là Job Follow hợp lệ và thực hiện bình thường.
+       - Nếu không tìm thấy chữ `"THEO DÕI"` (bất kể là Job Tim/Like, Share, Comment, hay bất kỳ Job lạ nào khác) -> Coi như là Job không hợp lệ, lập tức bấm "Báo lỗi" và gửi báo cáo để bỏ qua.
+  + Kết quả: Giải pháp tối ưu và triệt để vĩnh viễn, không lo GoLike cập nhật thêm bất kỳ loại Job lạ nào khác trong tương lai.
+
 ==================================================================
 * LƯU Ý KHI CHẨN ĐOÁN LẦN SAU:
 Nếu tool có bất kỳ hành vi lệch tọa độ hoặc không bấm được nút, hãy chạy file chẩn đoán:
