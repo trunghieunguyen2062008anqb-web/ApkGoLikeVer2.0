@@ -977,7 +977,16 @@ def main():
                         time.sleep(1.0)
 
             if not job_clicked:
-                log("Không tìm thấy nút Nhận Job, khởi động lại vòng lặp...", "WARNING")
+                log("Không tìm thấy nút Nhận Job. Tiến hành tắt và khởi động lại app GoLike...", "WARNING")
+                rot_cmd = ['adb']
+                if adb.device_id:
+                    rot_cmd.extend(['-s', adb.device_id])
+                # Tắt app GoLike
+                subprocess.run(rot_cmd + ['shell', 'am', 'force-stop', 'com.golike'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(2.0)
+                # Mở lại app GoLike
+                subprocess.run(rot_cmd + ['shell', 'monkey', '-p', 'com.golike', '-c', 'android.intent.category.LAUNCHER', '1'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(6.0)
                 continue
 
             # ================= BƯỚC 2: KIỂM TRA CAPTCHA =================
