@@ -39,7 +39,8 @@ TEMPLATES_CONFIG = {
     "txt_job_da_bi_xoa": {"filename": "txt_job_da_bi_xoa.png", "threshold": 0.75},
     "icon_thanh_cong": {"filename": "icon_thanh_cong.png", "threshold": 0.6},
     "tab_kiem_xu": {"filename": "tab_kiem_xu.png", "threshold": 0.75},
-    "btn_tiktok_channel": {"filename": "btn_tiktok_channel.png", "threshold": 0.75}
+    "btn_tiktok_channel": {"filename": "btn_tiktok_channel.png", "threshold": 0.75},
+    "job_follow_text": {"filename": "job_follow_text.png", "threshold": 0.75}
 }
 
 completed_jobs = 0
@@ -1090,27 +1091,12 @@ def main():
                             zone_job = screen[500:750, 32:688]
                         else:
                             zone_job = screen[160:600, :]
-                        is_like_job = False
-                        # 1. Check by icon (job_like_indicator)
-                        temp_data = matcher.loaded_templates.get("job_like_indicator")
-                        if temp_data is not None:
-                            job_like_scale = screen.shape[1] / 1080.0
-                            tw = int(temp_data["image"].shape[1] * job_like_scale / matcher.scale)
-                            th = int(temp_data["image"].shape[0] * job_like_scale / matcher.scale)
-                            if tw > 0 and th > 0:
-                                temp_img = cv2.resize(temp_data["image"], (tw, th), interpolation=cv2.INTER_AREA)
-                                res = cv2.matchTemplate(zone_job, temp_img, cv2.TM_CCOEFF_NORMED)
-                                _, max_val, _, _ = cv2.minMaxLoc(res)
-                                if max_val >= temp_data["threshold"]:
-                                    is_like_job = True
+                        # Whitelist kiểm tra xem có phải là Job Follow không (bằng từ khóa "THEO DÕI")
+                        is_follow_job = matcher.find_match(zone_job, "job_follow_text") is not None
+                        log(f"Loại Job nhận dạng: {'FOLLOW/THEO DÕI' if is_follow_job else 'JOB LẠ (TIM/LIKE/SHARE/...)'}", "JOB")
                         
-                        # 2. Check by text (job_like_text)
-                        if not is_like_job:
-                            is_like_job = matcher.find_match(zone_job, "job_like_text") is not None
-                        log(f"Loại Job nhận dạng: {'TIM/LIKE' if is_like_job else 'FOLLOW/THEO DÕI'}", "JOB")
-                        
-                        if is_like_job:
-                            log("Phát hiện Job Tim/Like. Tự động báo lỗi bỏ qua theo yêu cầu...", "WARNING")
+                        if not is_follow_job:
+                            log("Phát hiện Job lạ (không phải Follow). Tự động báo lỗi bỏ qua theo yêu cầu...", "WARNING")
                             trigger_report_error(screen, adb, matcher)
                             break
                         
