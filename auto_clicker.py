@@ -555,8 +555,8 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
                         temp_scaled = cv2.resize(temp_title, (tw, th), interpolation=cv2.INTER_CUBIC)
                         
                         res_title = cv2.matchTemplate(screen, temp_scaled, cv2.TM_CCOEFF_NORMED)
-                        res_title[:200, :] = 0
-                        res_title[1400:, :] = 0
+                        res_title[:400, :] = 0
+                        res_title[750:, :] = 0
                         res_title[:, :50] = 0
                         res_title[:, 600:] = 0
                         
@@ -668,8 +668,9 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
         # 4. Phát hiện trực tiếp Vòng tròn Nét Đứt (Waypoint x2, y2)
         dot_x1 = int(cw * 0.15)
         dot_x2 = int(cw * 0.85)
-        mid_gray = card_gray[:, dot_x1:dot_x2]
-        mid_hsv = card_hsv[:, dot_x1:dot_x2]
+        dot_y_limit = int(ch * 0.72)
+        mid_gray = card_gray[:dot_y_limit, dot_x1:dot_x2]
+        mid_hsv = card_hsv[:dot_y_limit, dot_x1:dot_x2]
         
         mask_dot = cv2.inRange(mid_gray, 0, 235)
         mask_dot_b = cv2.inRange(mid_hsv, np.array([85, 40, 40]), np.array([140, 255, 255]))
