@@ -155,7 +155,7 @@ class ModernADBController:
                     if self.device_id:
                         rot_cmd.extend(['-s', self.device_id])
                     subprocess.run(rot_cmd + ['shell', 'settings', 'put', 'system', 'user_rotation', '0'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    subprocess.run(rot_cmd + ['shell', 'settings', 'put', 'system', 'accelerometer_rotation', '1'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.run(rot_cmd + ['shell', 'settings', 'put', 'system', 'accelerometer_rotation', '0'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     time.sleep(1.0)
                     # Chụp lại màn hình mới sau khi xoay dọc
                     process_retry = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -874,6 +874,13 @@ def main():
         
     adb.device_id = devices[0]
     log(f"Đã kết nối thiết bị: {adb.device_id}", "SUCCESS")
+    
+    # Khóa cứng điện thoại ở hướng dọc Portrait
+    rot_cmd = ['adb']
+    if adb.device_id:
+        rot_cmd.extend(['-s', adb.device_id])
+    subprocess.run(rot_cmd + ['shell', 'settings', 'put', 'system', 'user_rotation', '0'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(rot_cmd + ['shell', 'settings', 'put', 'system', 'accelerometer_rotation', '0'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     scenario = 2
     init_screen = adb.get_screenshot()
