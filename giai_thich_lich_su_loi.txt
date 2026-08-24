@@ -237,6 +237,22 @@ Dưới đây là tổng hợp chi tiết các lỗi logic đã gặp trong quá
     + Sau đó tiếp tục vòng lặp để nhận job mới.
   + Kết quả: Giải quyết triệt để vấn đề kẹt đơ app, bot tự động cứu hộ chạy lại cực kỳ ổn định.
 
+
+------------------------------------------------------------------
+21. LỖI CHƯA TỰ ĐỘNG DI CHUYỂN VÀO TRANG NHẬN JOB SAU KHI KHỞI ĐỘNG LẠI
+------------------------------------------------------------------
+- Triệu chứng: Sau khi app GoLike được khởi động lại thành công, bot dừng ở Trang chủ (Home) hoặc trang Chọn kênh kiếm xu mà không biết làm thế nào để tự quay lại trang nhận Job Tiktok.
+- Nguyên nhân: 
+  + Trước đây bot chỉ chạy logic khi đã ở sẵn màn hình danh sách công việc của Tiktok, chưa có kịch bản điều hướng tự động từ Trang chủ về lại trang nhận Job.
+- Khắc phục:
+  + Dựng lại độ phân giải gốc `720p` từ ảnh chụp màn hình của người dùng để cắt 2 ảnh mẫu chuẩn xác tuyệt đối:
+    1. [`templates/tab_kiem_xu.png`](file:///d:/TrungHieu/apkGolike/templates/tab_kiem_xu.png): Nút tab ví tiền "Kiếm xu" dưới thanh điều hướng.
+    2. [`templates/btn_tiktok_channel.png`](file:///d:/TrungHieu/apkGolike/templates/btn_tiktok_channel.png): Card kênh kiếm tiền "Tiktok" trong màn hình chọn kênh.
+  + Thêm logic tự động kiểm tra và hồi phục màn hình trong Bước 1:
+    - Nếu phát hiện ở Trang chủ (khớp `tab_kiem_xu`) -> Click "Kiếm xu" và chờ 2.5s.
+    - Nếu phát hiện ở Chọn kênh (khớp `btn_tiktok_channel`) -> Click "Tiktok" và chờ 3.0s để vào thẳng trang nhận Job.
+  + Kết quả: Quy trình khép kín tự phục hồi hoàn tất, bot tự mở app, tự động bấm chuyển màn hình và tiếp tục làm việc hoàn hảo không tì vết.
+
 ==================================================================
 * LƯU Ý KHI CHẨN ĐOÁN LẦN SAU:
 Nếu tool có bất kỳ hành vi lệch tọa độ hoặc không bấm được nút, hãy chạy file chẩn đoán:
