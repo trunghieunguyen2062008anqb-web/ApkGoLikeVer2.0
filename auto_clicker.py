@@ -762,9 +762,15 @@ def solve_captcha(screen, adb, matcher, captcha_detector, scenario=3) -> bool:
         monkey_lines.append("UserWait(120)")
         
         # MOVE events (Tốc độ 40ms/bước cho 24 bước = 960ms)
-        for px, py in path[1:-1]:
-            monkey_lines.append(f"DispatchPointer(0, 0, 2, {px}, {py}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
-            monkey_lines.append("UserWait(40)")
+        for idx, (px, py) in enumerate(path[1:-1]):
+            # idx + 1 == steps_per_seg tương ứng với waypoint (x2, y2) ở vị trí path[12]
+            if idx + 1 == steps_per_seg:
+                # Dừng lại 150ms tại vòng nét đứt để Android bắt tọa độ chính xác, tránh bị cắt góc
+                monkey_lines.append(f"DispatchPointer(0, 0, 2, {px}, {py}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
+                monkey_lines.append("UserWait(150)")
+            else:
+                monkey_lines.append(f"DispatchPointer(0, 0, 2, {px}, {py}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
+                monkey_lines.append("UserWait(40)")
             
         # UP event (thả tay chính xác tại đích)
         monkey_lines.append(f"DispatchPointer(0, 0, 2, {path[-1][0]}, {path[-1][1]}, 1.0, 1.0, 0, 0.0, 0.0, 0, 0)")
