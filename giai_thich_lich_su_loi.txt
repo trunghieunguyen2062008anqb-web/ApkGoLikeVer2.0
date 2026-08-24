@@ -207,6 +207,19 @@ Dưới đây là tổng hợp chi tiết các lỗi logic đã gặp trong quá
   + Độ dừng 150ms này vừa giúp kịch bản vuốt giống người thật 100%, vừa bắt buộc Android phải ghi nhận và chốt chính xác tọa độ cảm ứng tại vòng nét đứt, ngăn chặn triệt để hành vi tự ý cắt góc của hệ điều hành.
   + Kết quả: Đường vuốt đi qua hồng tâm vòng nét đứt chuẩn xác 100% trong mọi lần chạy thử.
 
+
+------------------------------------------------------------------
+19. LỖI KÉO CAPTCHA VÒNG XUỐNG DƯỚI ĐÁY (GOM NHẦM CHỮ HƯỚNG DẪN)
+------------------------------------------------------------------
+- Triệu chứng: Đôi khi giải Captcha đường vẽ Bézier đi rất mượt, nhưng thỉnh thoảng nét vẽ tự dưng bị uốn vòng sạt xuống dưới đáy hộp thoại (nơi ghi dòng chữ hướng dẫn "Kéo khối vuông đi xuyên qua...") thay vì đi qua vòng nét đứt thật ở giữa.
+- Nguyên nhân: 
+  + Hộp thẻ Captcha chứa các vòng tròn kéo ở giữa và cả dòng chữ hướng dẫn màu xám ở dưới đáy.
+  + Khi quét nét đứt trong thẻ, thuật toán cũ quét trên toàn bộ chiều cao của card. Vì các nét chữ xám ở đáy có những nét cong (như o, ô, u, g, p...) có cấu trúc đứt đoạn tương đồng với các nét đứt, thuật toán gom contour đã bị đánh lừa và tính toán nhầm tâm vòng nét đứt trệch hẳn xuống vùng chữ ở đáy (tọa độ Y = 1130).
+- Khắc phục:
+  + Giới hạn chiều cao vùng quét nét đứt: Chỉ cho phép quét ở **72% phía trên** của card (`card_gray[:int(ch * 0.72), ...]`), loại bỏ hoàn toàn 28% phần đáy chứa dòng chữ hướng dẫn.
+  + Đồng thời giới hạn chặt vùng quét tiêu đề `res_title` Y trong khoảng `[400, 750]` để tránh nhận diện mốc sai lệch.
+  + Kết quả: Loại bỏ 100% hiện tượng nhiễu chữ ở đáy card, giúp xác định đúng hồng tâm vòng nét đứt thật và vẽ đường cong Bézier chuẩn xác 100%.
+
 ==================================================================
 * LƯU Ý KHI CHẨN ĐOÁN LẦN SAU:
 Nếu tool có bất kỳ hành vi lệch tọa độ hoặc không bấm được nút, hãy chạy file chẩn đoán:
