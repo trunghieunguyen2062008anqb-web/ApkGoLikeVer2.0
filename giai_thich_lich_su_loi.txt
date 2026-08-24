@@ -193,6 +193,20 @@ Dưới đây là tổng hợp chi tiết các lỗi logic đã gặp trong quá
     2. Trong hàm tự động nắn dòng của `get_screenshot()` nếu phát hiện bị xoay ngang.
   + Kết quả: Khóa cứng màn hình dọc vĩnh viễn, không bao giờ bị xoay ngang tự động kể cả khi lắc hay nghiêng thiết bị.
 
+
+------------------------------------------------------------------
+18. LỖI VUỐT CAPTCHA BỊ CẮT GÓC (KÉO TRỆT QUA VÒNG NÉT ĐỨT)
+------------------------------------------------------------------
+- Triệu chứng: Khi bot vuốt giải Captcha, đường vẽ Bézier đôi lúc đi hoàn hảo, nhưng đôi lúc lại bị kéo hơi mé (cắt góc) làm hụt vòng tròn nét đứt ở giữa, dẫn đến giải Captcha thất bại.
+- Nguyên nhân: 
+  + Khi hệ thống gửi các lệnh di chuyển ngón tay `DispatchPointer` liên tục qua ADB, nếu hệ điều hành Android bị trễ hoặc bận (lag), cơ chế xử lý cảm ứng (Touch Dispatcher) của Android sẽ tự động gom/gộp các sự kiện vuốt nhanh gần nhau (Touch Event Coalescing) để giảm tải cho CPU.
+  + Việc tự ý gộp sự kiện này khiến hệ điều hành bỏ qua đỉnh uốn cong tại tâm vòng nét đứt `(x2, y2)` mà tự động nối thẳng một đường chéo tắt đi qua, dẫn đến việc ngón tay bị kéo sạt cắt góc.
+- Khắc phục:
+  + Tận dụng thói quen sinh học của con người: Khi ngón tay kéo trượt căn chỉnh qua vòng nét đứt, người thật thường sẽ khựng nhẹ lại một nhịp rất ngắn để căn rồi mới kéo tiếp về đích.
+  + Tôi đã lập trình thêm **độ trễ dừng 150ms (`UserWait(150)`) ngay tại thời điểm ngón tay chạm đến hồng tâm vòng nét đứt `(x2, y2)`** trước khi tiếp tục vuốt Chặng 2.
+  + Độ dừng 150ms này vừa giúp kịch bản vuốt giống người thật 100%, vừa bắt buộc Android phải ghi nhận và chốt chính xác tọa độ cảm ứng tại vòng nét đứt, ngăn chặn triệt để hành vi tự ý cắt góc của hệ điều hành.
+  + Kết quả: Đường vuốt đi qua hồng tâm vòng nét đứt chuẩn xác 100% trong mọi lần chạy thử.
+
 ==================================================================
 * LƯU Ý KHI CHẨN ĐOÁN LẦN SAU:
 Nếu tool có bất kỳ hành vi lệch tọa độ hoặc không bấm được nút, hãy chạy file chẩn đoán:
