@@ -37,7 +37,9 @@ TEMPLATES_CONFIG = {
     "nut_bao_loi": {"filename": "nut_bao_loi.png", "threshold": 0.70},
     "nut_gui_bao_cao": {"filename": "nut_gui_bao_cao.png", "threshold": 0.70},
     "txt_job_da_bi_xoa": {"filename": "txt_job_da_bi_xoa.png", "threshold": 0.75},
-    "icon_thanh_cong": {"filename": "icon_thanh_cong.png", "threshold": 0.6}
+    "icon_thanh_cong": {"filename": "icon_thanh_cong.png", "threshold": 0.6},
+    "tab_kiem_xu": {"filename": "tab_kiem_xu.png", "threshold": 0.75},
+    "btn_tiktok_channel": {"filename": "btn_tiktok_channel.png", "threshold": 0.75}
 }
 
 completed_jobs = 0
@@ -957,6 +959,21 @@ def main():
                     time.sleep(0.8)
                     adb.tap(dy_x, dy_y)
                     time.sleep(1.5)
+                    continue
+
+                # Tự động điều hướng quay lại trang nhận job khi bị out ra ngoài trang chủ hoặc chọn kênh
+                match_tab_kx = matcher.find_match(screen, "tab_kiem_xu")
+                if match_tab_kx:
+                    log("Phát hiện đang ở Trang chủ. Click tab 'Kiếm xu' ở thanh điều hướng...", "INFO")
+                    adb.tap(match_tab_kx[0], match_tab_kx[1])
+                    time.sleep(2.5)
+                    continue
+                    
+                match_btn_tt = matcher.find_match(screen, "btn_tiktok_channel")
+                if match_btn_tt:
+                    log("Phát hiện đang ở màn hình chọn kênh. Click chọn kênh 'Tiktok'...", "INFO")
+                    adb.tap(match_btn_tt[0], match_btn_tt[1])
+                    time.sleep(3.0)
                     continue
 
                 match_nhan_job = matcher.find_match(screen, "nut_nhan_job_ngay")
