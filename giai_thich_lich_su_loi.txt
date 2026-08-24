@@ -220,6 +220,23 @@ Dưới đây là tổng hợp chi tiết các lỗi logic đã gặp trong quá
   + Đồng thời giới hạn chặt vùng quét tiêu đề `res_title` Y trong khoảng `[400, 750]` để tránh nhận diện mốc sai lệch.
   + Kết quả: Loại bỏ 100% hiện tượng nhiễu chữ ở đáy card, giúp xác định đúng hồng tâm vòng nét đứt thật và vẽ đường cong Bézier chuẩn xác 100%.
 
+
+------------------------------------------------------------------
+20. LỖI KẸT POPUP LIÊN TỤC KHÔNG TÌM THẤY NÚT NHẬN JOB
+------------------------------------------------------------------
+- Triệu chứng: Bot bị mắc kẹt trong vòng lặp click "Đóng popup cản trở..." liên tục nhưng popup không biến mất (hoặc lỗi UI làm lặp vô hạn), sau 10 lần thử không thể tìm thấy nút "Nhận Job ngay" để tiếp tục làm việc.
+- Nguyên nhân: 
+  + Có các popup cứng đầu hoặc quảng cáo đè lên không thể tắt được bằng cách click thông thường, hoặc UI của GoLike bị đơ đơ.
+- Khắc phục:
+  + Lập trình cơ chế Tự động khôi phục (Auto-Recovery): 
+    + Nếu sau một vòng quét (10 lần thử) ở Bước 1 mà không click được nút "Nhận Job ngay" (`job_clicked = False`), bot sẽ tự động thực thi chuỗi lệnh hồi phục:
+      1. Tắt nóng hoàn toàn app GoLike (`adb shell am force-stop com.golike`).
+      2. Chờ 2.0s để dọn dẹp tiến trình hệ thống.
+      3. Khởi chạy lại GoLike qua lệnh launcher mặc định (`adb shell monkey -p com.golike -c android.intent.category.LAUNCHER 1`).
+      4. Chờ 6.0s để trang chủ GoLike tải xong hoàn toàn.
+    + Sau đó tiếp tục vòng lặp để nhận job mới.
+  + Kết quả: Giải quyết triệt để vấn đề kẹt đơ app, bot tự động cứu hộ chạy lại cực kỳ ổn định.
+
 ==================================================================
 * LƯU Ý KHI CHẨN ĐOÁN LẦN SAU:
 Nếu tool có bất kỳ hành vi lệch tọa độ hoặc không bấm được nút, hãy chạy file chẩn đoán:
